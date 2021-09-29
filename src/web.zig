@@ -71,7 +71,6 @@ const AsyncSearcher = struct {
         self.progress = fraction;
         self.yield();
     }
-    // TODO: spawn
 };
 
 extern "slimy" fn resultCallback(x: i32, z: i32, count: u32) void;

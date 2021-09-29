@@ -111,17 +111,12 @@ pub fn search(
                 callback(self.ctx, completed, total);
             }
         }
-
-        pub fn spawn(_: Self, comptime func: anytype, args: anytype) !std.Thread {
-            return std.Thread.spawn(.{}, func, args);
-        }
     }).init(params, .{ .ctx = context }).search();
 }
 
 // Context should have the following functions:
 //  pub fn reportResult(self: Context, result: slimy.Result) void;
 //  pub fn reportProgress(self: Context, completed: u64, total: u64) void;
-//  pub fn spawnThread(self: Context, comptime func: anytype, args: anytype) !anytype
 pub fn Searcher(comptime Context: type) type {
     return struct {
         world_seed: i64,
@@ -177,14 +172,10 @@ pub fn Searcher(comptime Context: type) type {
         pub fn searchMultithread(
             self: Self,
         ) !void {
-            const Thread = @typeInfo(
-                @typeInfo(@TypeOf(Context.spawn)).Fn.return_type.?,
-            ).ErrorUnion.payload;
-
             var i: u8 = 0;
-            var thr: ?Thread = null;
+            var thr: ?std.Thread = null;
             while (i < self.threads) : (i += 1) {
-                thr = try self.ctx.spawn(searchWorker, .{ self, i, thr });
+                thr = try std.Thread.spawn(.{}, searchWorker, .{ self, i, thr });
             }
             thr.?.join();
         }

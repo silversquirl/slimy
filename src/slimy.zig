@@ -6,7 +6,7 @@ pub fn search(
     comptime callback: fn (@TypeOf(context), Result) void,
 ) !void {
     switch (params.method) {
-        .cpu => try cpu.search(params, context, callback),
+        .cpu => try cpu.search(params, context, callback, null),
         .gpu => @panic("TODO: gpu search"),
     }
 }
