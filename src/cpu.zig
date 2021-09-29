@@ -171,7 +171,7 @@ pub fn Searcher(comptime Context: type) type {
                 while (x0 < self.x1) : (x0 += step) {
                     const x1 = std.math.min(x0 + step, self.x1);
                     self.searchArea(x0, x1, z0, z1);
-                    completed_chunks += step * step;
+                    completed_chunks += @intCast(u64, x1 - x0) * @intCast(u64, z1 - z0);
 
                     self.ctx.reportProgress(completed_chunks, total_chunks);
                 }
@@ -213,9 +213,9 @@ pub fn Searcher(comptime Context: type) type {
             z1: i32,
         ) void {
             var z = z0;
-            while (z <= z1) : (z += 1) {
+            while (z < z1) : (z += 1) {
                 var x = x0;
-                while (x <= x1) : (x += 1) {
+                while (x < x1) : (x += 1) {
                     const count = checkLocation(self.world_seed, x, z);
                     if (count >= self.threshold) {
                         self.ctx.reportResult(.{
