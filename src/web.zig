@@ -1,15 +1,22 @@
 const std = @import("std");
 const slimy = @import("slimy.zig");
 
-export fn searchInit(world_seed: i64, range: i32, threshold: u32) ?*AsyncSearcher {
+export fn searchInit(
+    world_seed: i64,
+    threshold: u32,
+    x0: i32,
+    x1: i32,
+    z0: i32,
+    z1: i32,
+) ?*AsyncSearcher {
     return AsyncSearcher.init(std.heap.page_allocator, .{
         .world_seed = world_seed,
         .threshold = threshold,
 
-        .x0 = -range,
-        .x1 = range,
-        .z0 = -range,
-        .z1 = range,
+        .x0 = x0,
+        .x1 = x1,
+        .z0 = z0,
+        .z1 = z1,
 
         .method = .{ .cpu = 1 },
     }) catch null;

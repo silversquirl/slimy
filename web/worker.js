@@ -44,7 +44,15 @@ const tickEventLoop = () => {
 };
 
 const searchAsync = async params => {
-	const searcher = slimy.searchInit(params.seed, params.range, params.threshold);
+	const searcher = slimy.searchInit(
+		params.seed,
+		params.threshold,
+		params.x0,
+		params.x1,
+		params.z0,
+		params.z1,
+	);
+
 	while (slimy.searchStep(searcher)) {
 		postMessage({
 			type: "progress",
@@ -52,6 +60,7 @@ const searchAsync = async params => {
 		});
 		await tickEventLoop();
 	}
+
 	slimy.searchDeinit(searcher);
 };
 
