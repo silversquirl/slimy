@@ -1,4 +1,4 @@
-const cpu = @import("cpu.zig");
+pub const cpu = @import("cpu.zig");
 
 pub fn search(
     params: SearchParams,

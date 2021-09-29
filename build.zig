@@ -24,6 +24,7 @@ pub fn build(b: *std.build.Builder) !void {
     }));
     wasm.setBuildMode(mode);
     wasm.override_dest_dir = .{ .custom = "web" };
+    wasm.single_threaded = true;
 
     const web = b.addInstallDirectory(.{
         .source_dir = "web",

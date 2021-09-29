@@ -5,8 +5,8 @@ pub fn main() !void {
     const thread_count = std.math.lossyCast(u8, try std.Thread.getCpuCount());
     try slimy.search(.{
         .world_seed = 1,
-        .range = 10000,
-        .threshold = 45,
+        .range = 1000,
+        .threshold = 41,
         .method = .{ .cpu = thread_count },
     }, {}, callback);
 }

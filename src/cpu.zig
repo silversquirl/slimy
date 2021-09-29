@@ -97,21 +97,33 @@ pub fn search(
     context: anytype,
     comptime callback: fn (@TypeOf(context), slimy.Result) void,
 ) !void {
-    const searcher = Searcher(@TypeOf(context), callback).init(params, context);
+    const searcher = Searcher(.{
+        .Context = @TypeOf(context),
+        .resultCallback = callback,
+        .Thread = std.Thread,
+        .spawn = std.Thread.spawn,
+    }).init(params, context);
     try searcher.search();
 }
 
-fn Searcher(comptime Context: type, comptime callback: fn (Context, slimy.Result) void) type {
+pub const SearchConfig = struct {
+    Context: type,
+    resultCallback: anytype, // fn (Context, slimy.Result) void
+    Thread: type,
+    spawn: anytype, // fn (std.Thread.SpawnConfig, comptime anytype, anytype) !Thread
+};
+
+pub fn Searcher(comptime config: SearchConfig) type {
     return struct {
         world_seed: i64,
         range: u31,
         threshold: u32,
         threads: u8,
-        ctx: Context,
+        ctx: config.Context,
 
         const Self = @This();
 
-        fn init(params: slimy.SearchParams, context: Context) Self {
+        pub fn init(params: slimy.SearchParams, context: config.Context) Self {
             std.debug.assert(params.method.cpu > 0);
             return .{
                 .world_seed = params.world_seed,
@@ -122,47 +134,32 @@ fn Searcher(comptime Context: type, comptime callback: fn (Context, slimy.Result
             };
         }
 
-        fn search(self: Self) !void {
+        pub fn search(self: Self) !void {
             if (self.threads == 1) {
-                self.searchArea(
-                    -@as(i32, self.range),
-                    self.range,
-                    -@as(i32, self.range),
-                    self.range,
-                );
+                self.searchSinglethread();
+            } else if (std.builtin.single_threaded) {
+                unreachable;
             } else {
                 try self.searchMultithread();
             }
         }
 
-        fn searchArea(
-            self: Self,
-            start_z: i32,
-            end_z: i32,
-            start_x: i32,
-            end_x: i32,
-        ) void {
-            var z = start_z;
-            while (z < end_z) : (z += 1) {
-                var x = start_x;
-                while (x < end_x) : (x += 1) {
-                    const count = checkLocation(self.world_seed, x, z);
-                    if (count >= self.threshold) {
-                        callback(self.ctx, .{
-                            .x = x,
-                            .z = z,
-                            .count = count,
-                        });
-                    }
-                }
-            }
+        pub fn searchSinglethread(self: Self) void {
+            self.searchArea(
+                -@as(i32, self.range),
+                self.range,
+                -@as(i32, self.range),
+                self.range,
+            );
         }
 
-        fn searchMultithread(self: Self) !void {
+        pub fn searchMultithread(
+            self: Self,
+        ) !void {
             var i: u8 = 0;
-            var thr: ?std.Thread = null;
+            var thr: ?config.Thread = null;
             while (i < self.threads) : (i += 1) {
-                thr = try std.Thread.spawn(.{}, searchWorker, .{ self, i, thr });
+                thr = try config.spawn(.{}, searchWorker, .{ self, i, thr });
             }
             thr.?.join();
         }
@@ -185,6 +182,29 @@ fn Searcher(comptime Context: type, comptime callback: fn (Context, slimy.Result
 
             // This creates a linked list of threads, so we can just join the last one from the main thread
             if (prev_thread) |thr| thr.join();
+        }
+
+        fn searchArea(
+            self: Self,
+            start_z: i32,
+            end_z: i32,
+            start_x: i32,
+            end_x: i32,
+        ) void {
+            var z = start_z;
+            while (z < end_z) : (z += 1) {
+                var x = start_x;
+                while (x < end_x) : (x += 1) {
+                    const count = checkLocation(self.world_seed, x, z);
+                    if (count >= self.threshold) {
+                        config.resultCallback(self.ctx, .{
+                            .x = x,
+                            .z = z,
+                            .count = count,
+                        });
+                    }
+                }
+            }
         }
     };
 }
