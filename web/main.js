@@ -1,31 +1,40 @@
 (function() {
 	'use strict';
 
-	const initUi = (slimy) => {
-	    console.log("searching...");
-	    const start = performance.now();
-	    slimy.search(1n, 1000, 41);
-	    const end = performance.now();
-	    console.log(`done in ${end - start}ms`);
+	const status = document.getElementById("status");
+	const results = document.getElementById("results");
+
+	const worker = new Worker("worker.js");
+	worker.onerror = e => {
+		console.log(e);
+		status.innerText = "Error! :(";
+	};
+	worker.onmessage = e => {
+		switch (e.data.type) {
+		case "log": // Debugging
+			console.log(e.data.msg);
+			break;
+
+		case "progress":
+			const percent = e.data.progress * 100;
+			status.innerText = `Searching... (${percent.toFixed(2)}%)`;
+			break;
+
+		case "result":
+			const elem = document.createElement("li");
+			elem.innerText = `(${e.data.x}, ${e.data.y}) ${e.data.count}`;
+			results.appendChild(elem);
+			break;
+
+		case "finish":
+		    status.innerText = `Done in ${e.data.time}ms`;
+		    break;
+		}
 	};
 
-	let instantiateStreaming = WebAssembly.instantiateStreaming;
-	if (instantiateStreaming === undefined) {
-		// Specialized polyfill specifically for our needs
-		instantiateStreaming = (source, imports) => {
-			return source.then(res =>
-				res.arrayBuffer()
-			).then(buf =>
-				WebAssembly.instantiate(buf, imports)
-			);
-		}
-	}
-
-	instantiateStreaming(fetch("slimy.wasm"), {slimy: {
-		searchCallback(x, y, count) {
-			console.log(x, y, count);
-		}
-	}}).then(result => {
-		initUi(result.instance.exports);
+	worker.postMessage({
+		seed: 1n,
+		range: 1000,
+		threshold: 41,
 	});
 })();

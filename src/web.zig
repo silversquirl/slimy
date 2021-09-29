@@ -1,19 +1,84 @@
+const std = @import("std");
 const slimy = @import("slimy.zig");
 
-export fn search(world_seed: i64, range: i32, threshold: u32) void {
-    slimy.cpu.Searcher(.{
-        .Context = void,
-        .resultCallback = searchCallbackInternal,
-        .Thread = undefined,
-        .spawn = undefined,
-    }).init(.{
+export fn searchInit(world_seed: i64, range: i32, threshold: u32) ?*AsyncSearcher {
+    return AsyncSearcher.init(std.heap.page_allocator, .{
         .world_seed = world_seed,
         .range = @intCast(u31, range),
         .threshold = threshold,
         .method = .{ .cpu = 1 },
-    }, {}).searchSinglethread();
+    }) catch null;
 }
-fn searchCallbackInternal(_: void, res: slimy.Result) void {
-    searchCallback(res.x, res.z, res.count);
+
+export fn searchStep(searcher: *AsyncSearcher) bool {
+    return searcher.step();
 }
-extern "slimy" fn searchCallback(x: i32, z: i32, count: u32) void;
+
+export fn searchProgress(searcher: *AsyncSearcher) f64 {
+    return searcher.progress;
+}
+
+export fn searchDeinit(searcher: *AsyncSearcher) void {
+    searcher.deinit();
+}
+
+const AsyncSearcher = struct {
+    allocator: *std.mem.Allocator,
+    progress: f64 = 0,
+
+    done: bool = false,
+    frame: anyframe = undefined,
+    frame_storage: @Frame(search) = undefined,
+
+    pub fn init(allocator: *std.mem.Allocator, params: slimy.SearchParams) !*AsyncSearcher {
+        const self = try allocator.create(AsyncSearcher);
+        self.* = .{ .allocator = allocator };
+        self.frame_storage = async self.search(params);
+        return self;
+    }
+    pub fn deinit(self: *AsyncSearcher) void {
+        self.allocator.destroy(self);
+    }
+
+    pub fn step(self: *AsyncSearcher) bool {
+        if (!self.done) {
+            resume self.frame;
+        }
+        return !self.done;
+    }
+
+    fn yield(self: *AsyncSearcher) void {
+        suspend {
+            self.frame = @frame();
+        }
+    }
+
+    fn search(self: *AsyncSearcher, params: slimy.SearchParams) void {
+        self.yield();
+        slimy.cpu.Searcher(*AsyncSearcher)
+            .init(params, self)
+            .searchSinglethread();
+        self.done = true;
+    }
+
+    pub fn reportResult(_: *AsyncSearcher, res: slimy.Result) void {
+        resultCallback(res.x, res.z, res.count);
+    }
+    pub fn reportProgress(self: *AsyncSearcher, completed: u64, total: u64) void {
+        const resolution = 10_000;
+        const progress = resolution * completed / total;
+        const fraction = @intToFloat(f64, progress) / resolution;
+        self.progress = fraction;
+        self.yield();
+    }
+    // TODO: spawn
+};
+
+extern "slimy" fn resultCallback(x: i32, z: i32, count: u32) void;
+
+fn debugLog(comptime fmt: []const u8, args: anytype) void {
+    var buf: [4096]u8 = undefined;
+    const str = std.fmt.bufPrint(&buf, fmt, args) catch return;
+    consoleLog(str.ptr, str.len);
+}
+extern "slimy" fn consoleLog(ptr: [*]const u8, len: usize) void;

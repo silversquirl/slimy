@@ -95,35 +95,44 @@ fn checkLocation(world_seed: i64, cx: i32, cz: i32) u32 {
 pub fn search(
     params: slimy.SearchParams,
     context: anytype,
-    comptime callback: fn (@TypeOf(context), slimy.Result) void,
+    comptime resultCallback: fn (@TypeOf(context), slimy.Result) void,
+    comptime progressCallback: ?fn (@TypeOf(context), completed: u64, total: u64) void,
 ) !void {
-    const searcher = Searcher(.{
-        .Context = @TypeOf(context),
-        .resultCallback = callback,
-        .Thread = std.Thread,
-        .spawn = std.Thread.spawn,
-    }).init(params, context);
-    try searcher.search();
+    try Searcher(struct {
+        ctx: @TypeOf(context),
+
+        const Self = @This();
+
+        pub fn reportResult(self: Self, result: slimy.Result) void {
+            resultCallback(self.ctx, result);
+        }
+        pub fn reportProgress(self: Self, completed: u64, total: u64) void {
+            if (progressCallback) |callback| {
+                callback(self.ctx, completed, total);
+            }
+        }
+
+        pub fn spawn(_: Self, comptime func: anytype, args: anytype) !std.Thread {
+            return std.Thread.spawn(.{}, func, args);
+        }
+    }).init(params, .{ .ctx = context }).search();
 }
 
-pub const SearchConfig = struct {
-    Context: type,
-    resultCallback: anytype, // fn (Context, slimy.Result) void
-    Thread: type,
-    spawn: anytype, // fn (std.Thread.SpawnConfig, comptime anytype, anytype) !Thread
-};
-
-pub fn Searcher(comptime config: SearchConfig) type {
+// Context should have the following functions:
+//  pub fn reportResult(self: Context, result: slimy.Result) void;
+//  pub fn reportProgress(self: Context, completed: u64, total: u64) void;
+//  pub fn spawnThread(self: Context, comptime func: anytype, args: anytype) !anytype
+pub fn Searcher(comptime Context: type) type {
     return struct {
         world_seed: i64,
         range: u31,
         threshold: u32,
         threads: u8,
-        ctx: config.Context,
+        ctx: Context,
 
         const Self = @This();
 
-        pub fn init(params: slimy.SearchParams, context: config.Context) Self {
+        pub fn init(params: slimy.SearchParams, context: Context) Self {
             std.debug.assert(params.method.cpu > 0);
             return .{
                 .world_seed = params.world_seed,
@@ -145,21 +154,37 @@ pub fn Searcher(comptime config: SearchConfig) type {
         }
 
         pub fn searchSinglethread(self: Self) void {
-            self.searchArea(
-                -@as(i32, self.range),
-                self.range,
-                -@as(i32, self.range),
-                self.range,
-            );
+            const width: u64 = self.range * 2;
+            const total_chunks = width * width;
+            var completed_chunks: u64 = 0;
+            const step = 100;
+
+            var y = -@as(i32, self.range);
+            while (y < self.range) : (y += step) {
+                const y2 = std.math.min(y + step, self.range);
+
+                var x = -@as(i32, self.range);
+                while (x < self.range) : (x += step) {
+                    const x2 = std.math.min(x + step, self.range);
+                    self.searchArea(x, x2, y, y2);
+                    completed_chunks += step * step;
+
+                    self.ctx.reportProgress(completed_chunks, total_chunks);
+                }
+            }
         }
 
         pub fn searchMultithread(
             self: Self,
         ) !void {
+            const Thread = @typeInfo(
+                @typeInfo(@TypeOf(Context.spawn)).Fn.return_type.?,
+            ).ErrorUnion.payload;
+
             var i: u8 = 0;
-            var thr: ?config.Thread = null;
+            var thr: ?Thread = null;
             while (i < self.threads) : (i += 1) {
-                thr = try config.spawn(.{}, searchWorker, .{ self, i, thr });
+                thr = try self.ctx.spawn(searchWorker, .{ self, i, thr });
             }
             thr.?.join();
         }
@@ -173,6 +198,7 @@ pub fn Searcher(comptime config: SearchConfig) type {
             else
                 start_z + thread_width;
 
+            // TODO: progress reporting
             self.searchArea(
                 start_z,
                 end_z,
@@ -197,7 +223,7 @@ pub fn Searcher(comptime config: SearchConfig) type {
                 while (x < end_x) : (x += 1) {
                     const count = checkLocation(self.world_seed, x, z);
                     if (count >= self.threshold) {
-                        config.resultCallback(self.ctx, .{
+                        self.ctx.reportResult(.{
                             .x = x,
                             .z = z,
                             .count = count,
