@@ -13,8 +13,12 @@ pub fn search(
 
 pub const SearchParams = struct {
     world_seed: i64,
-    range: u31,
     threshold: u32,
+
+    x0: i32,
+    z0: i32,
+    x1: i32,
+    z1: i32,
 
     method: union(enum) {
         cpu: u8, // Thread count

@@ -120,8 +120,13 @@ pub fn search(
 pub fn Searcher(comptime Context: type) type {
     return struct {
         world_seed: i64,
-        range: u31,
         threshold: u32,
+
+        x0: i32,
+        z0: i32,
+        x1: i32,
+        z1: i32,
+
         threads: u8,
         ctx: Context,
 
@@ -131,8 +136,13 @@ pub fn Searcher(comptime Context: type) type {
             std.debug.assert(params.method.cpu > 0);
             return .{
                 .world_seed = params.world_seed,
-                .range = params.range,
                 .threshold = params.threshold,
+
+                .x0 = params.x0,
+                .x1 = params.x1,
+                .z0 = params.z0,
+                .z1 = params.z1,
+
                 .threads = params.method.cpu,
                 .ctx = context,
             };
@@ -149,19 +159,18 @@ pub fn Searcher(comptime Context: type) type {
         }
 
         pub fn searchSinglethread(self: Self) void {
-            const width: u64 = self.range * 2;
-            const total_chunks = width * width;
+            const total_chunks = @intCast(u64, self.x1 - self.x0) * @intCast(u64, self.z1 - self.z0);
             var completed_chunks: u64 = 0;
             const step = 100;
 
-            var y = -@as(i32, self.range);
-            while (y < self.range) : (y += step) {
-                const y2 = std.math.min(y + step, self.range);
+            var z0 = self.z0;
+            while (z0 < self.z1) : (z0 += step) {
+                const z1 = std.math.min(z0 + step, self.z1);
 
-                var x = -@as(i32, self.range);
-                while (x < self.range) : (x += step) {
-                    const x2 = std.math.min(x + step, self.range);
-                    self.searchArea(x, x2, y, y2);
+                var x0 = self.x0;
+                while (x0 < self.x1) : (x0 += step) {
+                    const x1 = std.math.min(x0 + step, self.x1);
+                    self.searchArea(x0, x1, z0, z1);
                     completed_chunks += step * step;
 
                     self.ctx.reportProgress(completed_chunks, total_chunks);
@@ -182,20 +191,15 @@ pub fn Searcher(comptime Context: type) type {
         fn searchWorker(self: Self, thread_idx: u8, prev_thread: ?std.Thread) void {
             // TODO: work stealing
 
-            const thread_width = self.range * 2 / self.threads;
-            const start_z = thread_idx * thread_width - @as(i32, self.range);
-            const end_z = if (thread_idx == self.threads - 1)
-                self.range // Last thread, consume all remaining area
+            const thread_width = @intCast(u31, self.z1 - self.z0) / self.threads;
+            const z0 = self.z0 + thread_idx * thread_width;
+            const z1 = if (thread_idx == self.threads - 1)
+                self.z1 // Last thread, consume all remaining area
             else
-                start_z + thread_width;
+                z0 + thread_width;
 
             // TODO: progress reporting
-            self.searchArea(
-                start_z,
-                end_z,
-                -@as(i32, self.range),
-                self.range,
-            );
+            self.searchArea(self.x0, self.x1, z0, z1);
 
             // This creates a linked list of threads, so we can just join the last one from the main thread
             if (prev_thread) |thr| thr.join();
@@ -203,15 +207,15 @@ pub fn Searcher(comptime Context: type) type {
 
         fn searchArea(
             self: Self,
-            start_z: i32,
-            end_z: i32,
-            start_x: i32,
-            end_x: i32,
+            x0: i32,
+            x1: i32,
+            z0: i32,
+            z1: i32,
         ) void {
-            var z = start_z;
-            while (z < end_z) : (z += 1) {
-                var x = start_x;
-                while (x < end_x) : (x += 1) {
+            var z = z0;
+            while (z <= z1) : (z += 1) {
+                var x = x0;
+                while (x <= x1) : (x += 1) {
                     const count = checkLocation(self.world_seed, x, z);
                     if (count >= self.threshold) {
                         self.ctx.reportResult(.{

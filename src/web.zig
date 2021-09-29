@@ -4,8 +4,13 @@ const slimy = @import("slimy.zig");
 export fn searchInit(world_seed: i64, range: i32, threshold: u32) ?*AsyncSearcher {
     return AsyncSearcher.init(std.heap.page_allocator, .{
         .world_seed = world_seed,
-        .range = @intCast(u31, range),
         .threshold = threshold,
+
+        .x0 = -range,
+        .x1 = range,
+        .z0 = -range,
+        .z1 = range,
+
         .method = .{ .cpu = 1 },
     }) catch null;
 }
