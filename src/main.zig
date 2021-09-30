@@ -5,12 +5,12 @@ pub fn main() !void {
     const thread_count = std.math.lossyCast(u8, try std.Thread.getCpuCount());
     try slimy.search(.{
         .world_seed = 1,
-        .threshold = 41,
+        .threshold = 45,
 
-        .x0 = -1000,
-        .x1 = 1000,
-        .z0 = -1000,
-        .z1 = 1000,
+        .x0 = -5000,
+        .x1 = 5000,
+        .z0 = -5000,
+        .z1 = 5000,
 
         .method = .{ .cpu = thread_count },
     }, {}, callback);

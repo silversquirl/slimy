@@ -205,6 +205,7 @@ pub fn Searcher(comptime Context: type) type {
             if (prev_thread) |thr| thr.join();
         }
 
+        // TODO: cache isSlime results
         fn searchArea(
             self: Self,
             x0: i32,
