@@ -2,6 +2,25 @@
 <meta charset="utf-8">
 <title>Slimy</title>
 
-<h3 id="status">Loading...</h3>
+<form id="params">
+	<label for="seed">Seed:</label>
+	<input type="text" name="seed">
+
+	<label for="threshold">Threshold:</label>
+	<input type="number" name="threshold" min="0" value="40">
+
+	<label for="range">Range:</label>
+	<input type="number" name="range" min="0" step="100" value="1000">
+
+	<input type="submit" value="Search">
+</form>
+
+<h3 id="status"></h3>
+<button id="csv" style="display: none;">Generate CSV</button>
 <ul id="results"></ul>
+
+<small>
+	For large scale searches, <a href="https://github.com/silversquirl/slimy">download and run slimy natively</a>.
+</small>
+
 <script src="main.js"></script>

@@ -21,11 +21,11 @@ const slimy_promise = instantiateStreaming(fetch("slimy.wasm"), {slimy: {
 		});
 	},
 
-	resultCallback(x, y, count) {
+	resultCallback(x, z, count) {
 		postMessage({
 			type: "result",
 			x: x,
-			y: y,
+			z: z,
 			count: count,
 		});
 	},
@@ -43,6 +43,7 @@ const tickEventLoop = () => {
 	});
 };
 
+let cancel = false;
 const searchAsync = async params => {
 	const searcher = slimy.searchInit(
 		params.seed,
@@ -53,7 +54,7 @@ const searchAsync = async params => {
 		params.z1,
 	);
 
-	while (slimy.searchStep(searcher)) {
+	while (!cancel && slimy.searchStep(searcher)) {
 		postMessage({
 			type: "progress",
 			progress: slimy.searchProgress(searcher),
@@ -62,19 +63,36 @@ const searchAsync = async params => {
 	}
 
 	slimy.searchDeinit(searcher);
+
+	if (cancel) {
+		cancel = false;
+		return false;
+	}
+
+	return true;
 };
 
 onmessage = function(e) {
-	slimy_promise.then(async () => {
-		// TODO: task cancellation
+	if (e.data === "cancel") {
+		cancel = true
+	} else {
+		slimy_promise.then(async () => {
+			// TODO: task cancellation
 
-		const start = performance.now();
-		await searchAsync(e.data);
-		const end = performance.now();
+			const start = performance.now();
+			const ok = await searchAsync(e.data);
+			const end = performance.now();
 
-		postMessage({
-			type: "finish",
-			time: end - start,
+			if (ok) {
+				postMessage({
+					type: "finish",
+					time: end - start,
+				});
+			} else {
+				postMessage({
+					type: "cancel",
+				});
+			}
 		});
-	});
+	}
 };
