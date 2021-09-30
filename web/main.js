@@ -2,7 +2,45 @@
 	'use strict';
 
 	const status = document.getElementById("status");
-	const results = document.getElementById("results");
+	const result_list = document.getElementById("results");
+
+	// Less-than operation for search results
+	const resultsInOrder = (a, b) => {
+		if (a.count != b.count) {
+			return a.count > b.count;
+		}
+
+		const a_d2 = a.x*a.x + a.z*a.z;
+		const b_d2 = b.x*b.x + b.z*b.z;
+		if (a_d2 != b_d2) {
+			return a_d2 < b_d2;
+		}
+
+		if (a.x != b.x) {
+			return a.x < b.x;
+		}
+		if (a.z != b.z) {
+			return a.z < b.z;
+		}
+		return false;
+	};
+
+	let results = [];
+	const reportResult = (res) => {
+		// Insert the result preserving sortedness
+		var i = results.length;
+		while (i > 0 && resultsInOrder(res, results[i-1])) i--;
+		results.splice(i, 0, res);
+
+		// Insert a DOM element at the same position
+		const elem = document.createElement("li");
+		elem.innerText = `(${res.x}, ${res.y}) ${res.count}`;
+		if (i == result_list.length) {
+			result_list.appendChild(elem);
+		} else {
+			result_list.insertBefore(elem, result_list.children[i]);
+		}
+	}
 
 	let threads = [];
 	let active_count = 0;
@@ -35,9 +73,7 @@
 				break;
 
 			case "result":
-				const elem = document.createElement("li");
-				elem.innerText = `(${e.data.x}, ${e.data.y}) ${e.data.count}`;
-				results.appendChild(elem);
+				reportResult(e.data);
 				break;
 
 			case "finish":
