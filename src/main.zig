@@ -60,7 +60,13 @@ pub fn main() u8 {
         error.OutOfMemory => @panic("Out of memory"),
     };
 
-    slimy.search(options.search, {}, callback) catch |err| switch (err) {
+    var ctx = OutputContext{
+        .allocator = std.heap.page_allocator,
+        .options = options.output,
+    };
+    defer ctx.flush();
+
+    slimy.search(options.search, &ctx, OutputContext.result) catch |err| switch (err) {
         error.ThreadQuotaExceeded => @panic("Thread quota exceeded"),
         error.SystemResources => @panic("System resources error"),
         error.OutOfMemory => @panic("Out of memory"),
@@ -68,14 +74,49 @@ pub fn main() u8 {
         error.Unexpected => @panic("Unexpected error"),
     };
 
-    // TODO: use options.output
-
     return 0;
 }
 
-fn callback(_: void, res: slimy.Result) void {
-    std.debug.print("({:>5}, {:>5})   {}\n", .{ res.x, res.z, res.count });
-}
+const OutputContext = struct {
+    allocator: *std.mem.Allocator,
+    options: OutputOptions,
+    buf: std.ArrayListUnmanaged(slimy.Result) = .{},
+
+    pub fn result(self: *OutputContext, res: slimy.Result) void {
+        if (self.options.sort) {
+            self.buf.append(self.allocator, res) catch {
+                std.log.warn("Out of memory while attempting to sort items; output may be unsorted", .{});
+                output(res);
+                return;
+            };
+            std.sort.insertionSort(slimy.Result, self.buf.items, {}, slimy.Result.sortLessThan);
+        } else {
+            output(res);
+        }
+    }
+    fn output(res: slimy.Result) void {
+        std.debug.print("({:>5}, {:>5})   {}\n", .{ res.x, res.z, res.count });
+    }
+
+    pub fn flush(self: *OutputContext) void {
+        for (self.buf.items) |res| {
+            output(res);
+        }
+        self.buf.deinit(self.allocator);
+    }
+};
+
+pub const OutputOptions = struct {
+    format: Format,
+    sort: bool,
+    in_place: bool,
+
+    const Format = enum {
+        csv,
+        json,
+        human,
+    };
+};
 
 fn usage(out: std.fs.File) void {
     out.writeAll(
@@ -83,7 +124,7 @@ fn usage(out: std.fs.File) void {
         \\
         \\  -h              Display this help message
         \\  -f FORMAT       Output format (csv, json or human) (NOT YET IMPLEMENTED)
-        \\  -u              Disable output sorting (NOT YET IMPLEMENTED)
+        \\  -u              Disable output sorting
         \\  -i              Enable in-place sorting (default for human output to tty) (NOT YET IMPLEMENTED)
         \\  -j THREADS      Number of threads to use
         \\
@@ -93,16 +134,7 @@ fn usage(out: std.fs.File) void {
 
 const Options = struct {
     search: slimy.SearchParams,
-    output: struct {
-        format: OutputFormat,
-        sort: bool,
-        in_place: bool,
-    },
-};
-const OutputFormat = enum {
-    csv,
-    json,
-    human,
+    output: OutputOptions,
 };
 
 fn parseArgs() !Options {
@@ -123,14 +155,14 @@ fn parseArgs() !Options {
         return error.Help;
     }
 
-    const format = std.meta.stringToEnum(OutputFormat, flags.f) orelse {
+    const format = std.meta.stringToEnum(OutputOptions.Format, flags.f) orelse {
         return error.InvalidFormat;
     };
 
     const out = std.io.getStdOut();
     if (flags.i == null) {
         flags.i = format == .human and out.supportsAnsiEscapeCodes();
-    } else if (flags.i.?) {
+    } else if (flags.i.? and !out.supportsAnsiEscapeCodes()) {
         out.seekBy(0) catch return error.Unseekable;
     }
 
