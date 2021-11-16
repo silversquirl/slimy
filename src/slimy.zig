@@ -20,10 +20,11 @@ pub const SearchParams = struct {
     x1: i32,
     z1: i32,
 
-    method: union(enum) {
-        cpu: u8, // Thread count
-        gpu: void,
-    },
+    method: SearchMethod,
+};
+pub const SearchMethod = union(enum) {
+    cpu: u8, // Thread count
+    gpu: void,
 };
 
 pub const Result = struct {

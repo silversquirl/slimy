@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const slimy = @import("slimy.zig");
 
 // Search mask; row-major; bottom-left origin
@@ -151,7 +152,7 @@ pub fn Searcher(comptime Context: type) type {
         pub fn search(self: Self) !void {
             if (self.threads == 1) {
                 self.searchSinglethread();
-            } else if (std.builtin.single_threaded) {
+            } else if (builtin.single_threaded) {
                 unreachable;
             } else {
                 try self.searchMultithread();

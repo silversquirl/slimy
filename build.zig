@@ -1,11 +1,16 @@
 const std = @import("std");
+const Deps = @import("Deps.zig");
 
 pub fn build(b: *std.build.Builder) !void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
     const singlethread = b.option(bool, "singlethread", "Build in single-threaded mode") orelse false;
 
+    const deps = Deps.init(b);
+    deps.add("https://github.com/silversquirl/optz", "main");
+
     const exe = b.addExecutable("slimy", "src/main.zig");
+    deps.addTo(exe);
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.single_threaded = singlethread;
