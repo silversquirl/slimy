@@ -47,11 +47,6 @@ pub fn main() u8 {
             return 1;
         },
 
-        error.Unseekable => {
-            std.log.err("Cannot use -i with unseekable non-tty output stream", .{});
-            return 1;
-        },
-
         error.InvalidCmdLine => {
             std.log.err("Encoding error in command line arguments", .{});
             return 1;
@@ -138,7 +133,6 @@ const OutputContext = struct {
 pub const OutputOptions = struct {
     format: Format,
     sort: bool,
-    in_place: bool,
 
     const Format = enum {
         csv,
@@ -152,9 +146,8 @@ fn usage(out: std.fs.File) void {
         \\Usage: slimy [OPTIONS] SEED RANGE THRESHOLD
         \\
         \\  -h              Display this help message
-        \\  -f FORMAT       Output format (csv, json or human) (NOT YET IMPLEMENTED)
+        \\  -f FORMAT       Output format (csv, json or human)
         \\  -u              Disable output sorting
-        \\  -i              Enable in-place sorting (default for human output to tty) (NOT YET IMPLEMENTED)
         \\  -j THREADS      Number of threads to use
         \\
         \\
@@ -176,7 +169,6 @@ fn parseArgs() !Options {
 
         f: []const u8 = "human",
         u: bool = false,
-        i: ?bool = null,
         j: u8 = 0,
     }, &args);
 
@@ -187,13 +179,6 @@ fn parseArgs() !Options {
     const format = std.meta.stringToEnum(OutputOptions.Format, flags.f) orelse {
         return error.InvalidFormat;
     };
-
-    const out = std.io.getStdOut();
-    if (flags.i == null) {
-        flags.i = format == .human and out.supportsAnsiEscapeCodes();
-    } else if (flags.i.? and !out.supportsAnsiEscapeCodes()) {
-        out.seekBy(0) catch return error.Unseekable;
-    }
 
     if (builtin.single_threaded) {
         if (flags.j == 0) {
@@ -232,7 +217,6 @@ fn parseArgs() !Options {
         .output = .{
             .format = format,
             .sort = !flags.u,
-            .in_place = flags.i.?,
         },
     };
 }
