@@ -60,10 +60,7 @@ pub fn main() u8 {
         error.OutOfMemory => @panic("Out of memory"),
     };
 
-    var ctx = OutputContext{
-        .allocator = std.heap.page_allocator,
-        .options = options.output,
-    };
+    var ctx = OutputContext.init(std.heap.page_allocator, options.output);
     defer ctx.flush();
 
     slimy.search(options.search, &ctx, OutputContext.result) catch |err| switch (err) {
@@ -78,31 +75,63 @@ pub fn main() u8 {
 }
 
 const OutputContext = struct {
-    allocator: *std.mem.Allocator,
+    f: std.fs.File,
     options: OutputOptions,
-    buf: std.ArrayListUnmanaged(slimy.Result) = .{},
+    buf: std.ArrayList(slimy.Result),
+    first: bool = true, // True if no results have been output
+
+    pub fn init(allocator: *std.mem.Allocator, options: OutputOptions) OutputContext {
+        return OutputContext{
+            .f = std.io.getStdOut(),
+            .options = options,
+            .buf = std.ArrayList(slimy.Result).init(allocator),
+        };
+    }
 
     pub fn result(self: *OutputContext, res: slimy.Result) void {
         if (self.options.sort) {
-            self.buf.append(self.allocator, res) catch {
+            self.buf.append(res) catch {
                 std.log.warn("Out of memory while attempting to sort items; output may be unsorted", .{});
-                output(res);
+                self.output(res);
                 return;
             };
             std.sort.insertionSort(slimy.Result, self.buf.items, {}, slimy.Result.sortLessThan);
         } else {
-            output(res);
+            self.output(res);
         }
     }
-    fn output(res: slimy.Result) void {
-        std.debug.print("({:>5}, {:>5})   {}\n", .{ res.x, res.z, res.count });
+
+    fn print(self: OutputContext, comptime fmt: []const u8, args: anytype) void {
+        self.f.writer().print(fmt, args) catch |err| {
+            std.debug.panic("Error writing output: {s}", .{@errorName(err)});
+        };
+    }
+    fn output(self: *OutputContext, res: slimy.Result) void {
+        if (self.options.format == .json) {
+            if (self.first) {
+                self.print("[\n", .{});
+            } else {
+                self.print(",\n", .{});
+            }
+        }
+        self.first = false;
+        switch (self.options.format) {
+            .human => self.print("({:>5}, {:>5})   {}\n", .{ res.x, res.z, res.count }),
+            .json => self.print(
+                \\ {{ "x": {}, "z": {}, "count": {} }}
+            , .{ res.x, res.z, res.count }),
+            .csv => self.print("{},{},{}\n", .{ res.x, res.z, res.count }),
+        }
     }
 
     pub fn flush(self: *OutputContext) void {
         for (self.buf.items) |res| {
-            output(res);
+            self.output(res);
         }
-        self.buf.deinit(self.allocator);
+        if (self.options.format == .json) {
+            self.print("\n]\n", .{});
+        }
+        self.buf.deinit();
     }
 };
 
