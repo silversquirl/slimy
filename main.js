@@ -47,64 +47,110 @@
 		csv.style = "";
 	}
 
-	let threads = [];
-	let active_count = 0;
-	let resolve_threads;
-	let threads_promise;
-	const createThread = () => {
-		const thread = {
-			worker: new Worker("worker.js"),
-			progress: 0,
-		};
+	const cpu_searcher = {
+		threads: [],
+		active_count: 0,
+		resolve_threads: null,
+		threads_promise: null,
 
-		thread.worker.onerror = e => {
-			status.innerText = "Error spawning workers";
-		};
+		createThread() {
+			const thread = {
+				worker: new Worker("worker.js"),
+				progress: 0,
+			};
 
-		thread.worker.onmessage = e => {
-			switch (e.data.type) {
-			case "log": // Debugging
-				console.log(e.data.msg);
-				break;
+			thread.worker.onerror = e => {
+				status.innerText = "Error spawning workers";
+			};
 
-			case "progress":
-				thread.progress = e.data.progress;
-				if (e.data.progress > 1) console.log(e.data.progress);
-				let total = 0;
-				for (const thr of threads) {
-					total += thr.progress;
+			thread.worker.onmessage = e => {
+				switch (e.data.type) {
+				case "log": // Debugging
+					console.log(e.data.msg);
+					break;
+
+				case "progress":
+					thread.progress = e.data.progress;
+					const percent = this.progress() * 100;
+					status.innerText = `Searching... (${percent.toFixed(2)}%)`;
+					break;
+
+				case "result":
+					reportResult(e.data);
+					break;
+
+				case "finish":
+					this.active_count--;
+					if (this.active_count === 0) {
+						status.innerText = `Done in ${e.data.time}ms`;
+						this.resolve_threads();
+					}
+					break;
+
+				case "cancel":
+					this.active_count--;
+					if (this.active_count === 0) {
+						this.resolve_threads();
+					}
 				}
-				const percent = total * 100 / threads.length;
-				status.innerText = `Searching... (${percent.toFixed(2)}%)`;
-				break;
+			};
 
-			case "result":
-				reportResult(e.data);
-				break;
+			return thread;
+		},
 
-			case "finish":
-				active_count--;
-				if (active_count === 0) {
-					status.innerText = `Done in ${e.data.time}ms`;
-					resolve_threads();
-				}
-				break;
-
-			case "cancel":
-				active_count--;
-				if (active_count === 0) {
-					resolve_threads();
-				}
+		init() {
+			const thread_count = navigator.hardwareConcurrency;
+			for (let i = 0; i < thread_count; i++) {
+				this.threads.push(this.createThread());
 			}
-		};
+		},
+		ensure_init() {
+			if (this.threads.length === 0) {
+				this.init();
+			}
+		},
 
-		return thread;
+		active() {
+			return this.active_count != 0;
+		},
+		progress() {
+			let total = 0;
+			for (const thr of this.threads) {
+				total += thr.progress;
+			}
+			return total / this.threads.length
+		},
+
+		async cancel() {
+			for (let thr of this.threads) {
+				thr.worker.postMessage("cancel");
+			}
+			await this.threads_promise;
+		},
+
+		submit(params) {
+			this.ensure_init();
+			this.active_count = this.threads.length;
+			this.threads_promise = new Promise(resolve => this.resolve_threads = resolve);
+			for (let thread_idx = 0; thread_idx < this.threads.length; thread_idx++) {
+				const thread_width = (params.z1 - params.z0) / this.threads.length;
+				const z0 = params.z0 + thread_idx * thread_width;
+				const z1 = thread_idx === this.threads.length - 1 ? params.z1 : z0 + thread_width;
+
+				this.threads[thread_idx].worker.postMessage({
+					seed: params.seed,
+					threshold: params.threshold,
+
+					x0: params.x0,
+					x1: params.x1,
+					z0: z0,
+					z1: z1,
+				});
+			}
+		},
 	};
 
-	const thread_count = navigator.hardwareConcurrency;
-	for (let i = 0; i < thread_count; i++) {
-		threads.push(createThread());
-	}
+	let searcher = cpu_searcher;
 
 	window.submitSearch = params => {
 		results = [];
@@ -114,34 +160,14 @@
 		world_seed = params.seed;
 		csv.style = "display: none;";
 
-		active_count = threads.length;
-		threads_promise = new Promise(resolve => resolve_threads = resolve);
-		for (let thread_idx = 0; thread_idx < threads.length; thread_idx++) {
-			const thread_width = (params.z1 - params.z0) / threads.length;
-			const z0 = params.z0 + thread_idx * thread_width;
-			const z1 = thread_idx === threads.length - 1 ? params.z1 : z0 + thread_width;
-
-			threads[thread_idx].worker.postMessage({
-				seed: params.seed,
-				threshold: params.threshold,
-
-				x0: params.x0,
-				x1: params.x1,
-				z0: z0,
-				z1: z1,
-			});
+		if (searcher.active()) {
+			searcher.cancel();
 		}
+		searcher.submit(params);
 	};
 
 	form.addEventListener("submit", async ev => {
 		ev.preventDefault();
-
-		if (active_count != 0) {
-			for (let thr of threads) {
-				thr.worker.postMessage("cancel");
-			}
-			await threads_promise;
-		}
 
 		const seed = BigInt(form.elements.seed.value);
 		const threshold = form.elements.threshold.value | 0;
