@@ -3,10 +3,12 @@ const std = @import("std");
 pub fn build(b: *std.build.Builder) !void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
+    const singlethread = b.option(bool, "singlethread", "Build in single-threaded mode") orelse false;
 
     const exe = b.addExecutable("slimy", "src/main.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
+    exe.single_threaded = singlethread;
     exe.install();
 
     const run_cmd = exe.run();
