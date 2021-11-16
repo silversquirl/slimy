@@ -8,20 +8,20 @@
 
 	// Less-than operation for search results
 	const resultsInOrder = (a, b) => {
-		if (a.count != b.count) {
+		if (a.count !== b.count) {
 			return a.count > b.count;
 		}
 
 		const a_d2 = a.x*a.x + a.z*a.z;
 		const b_d2 = b.x*b.x + b.z*b.z;
-		if (a_d2 != b_d2) {
+		if (a_d2 !== b_d2) {
 			return a_d2 < b_d2;
 		}
 
-		if (a.x != b.x) {
+		if (a.x !== b.x) {
 			return a.x < b.x;
 		}
-		if (a.z != b.z) {
+		if (a.z !== b.z) {
 			return a.z < b.z;
 		}
 		return false;
