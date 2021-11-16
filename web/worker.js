@@ -43,8 +43,10 @@ const tickEventLoop = () => {
 	});
 };
 
-let cancel = false;
+let cancel;
 const searchAsync = async params => {
+	cancel = false;
+
 	const searcher = slimy.searchInit(
 		params.seed,
 		params.threshold,
@@ -72,13 +74,11 @@ const searchAsync = async params => {
 	return true;
 };
 
-onmessage = function(e) {
+onmessage = e => {
 	if (e.data === "cancel") {
 		cancel = true
 	} else {
 		slimy_promise.then(async () => {
-			// TODO: task cancellation
-
 			const start = performance.now();
 			const ok = await searchAsync(e.data);
 			const end = performance.now();

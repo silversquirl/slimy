@@ -105,7 +105,7 @@
 			}
 		},
 		ensure_init() {
-			if (this.threads.length == 0) {
+			if (this.threads.length === 0) {
 				this.init();
 			}
 		},
