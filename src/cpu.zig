@@ -43,7 +43,7 @@ fn isSlime(world_seed: i64, x: i32, z: i32) bool {
     seed = (seed ^ magic) & mask;
 
     // Calculate random result
-    seed = (seed *% magic + 0xB) & mask;
+    seed = (seed *% magic +% 0xB) & mask;
     const bits = @intCast(i32, seed >> 48 - 31);
     const val = @mod(bits, 10);
 
