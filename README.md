@@ -52,18 +52,12 @@ For users wanting more control, there are some options that can change how Slimy
 ### Output format
 
 By default, Slimy outputs results in a human-readable format.
-However, if postprocessing of the results is desired, Slimy can be configured to output them in either CSV or JSON format instead, using the `-f` option.
+However, if postprocessing of the results is desired, Slimy can be configured to output them in CSV format instead, using the `-f` option.
 
 To output results to a CSV file named `results.csv`, use the following command:
 
 ```
 slimy-SYSTEM -f csv -- SEED RANGE THRESHOLD >results.csv
-```
-
-Similarly, to produce a JSON file named `results.json`, this command can be used:
-
-```
-slimy-SYSTEM -f json -- SEED RANGE THRESHOLD >results.json
 ```
 
 ### Unsorted output
