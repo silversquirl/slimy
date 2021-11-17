@@ -35,7 +35,7 @@ pub fn main() u8 {
             return 1;
         },
         error.InvalidFormat => {
-            std.log.err("Invalid output format. Must be 'human', 'csv', or 'json'", .{});
+            std.log.err("Invalid output format. Must be 'human' or 'csv'", .{});
             return 1;
         },
         error.InvalidMethod => {
@@ -113,19 +113,9 @@ const OutputContext = struct {
         };
     }
     fn output(self: *OutputContext, res: slimy.Result) void {
-        if (self.options.format == .json) {
-            if (self.first) {
-                self.print("[\n", .{});
-            } else {
-                self.print(",\n", .{});
-            }
-        }
         self.first = false;
         switch (self.options.format) {
             .human => self.print("({:>5}, {:>5})   {}\n", .{ res.x, res.z, res.count }),
-            .json => self.print(
-                \\ {{ "x": {}, "z": {}, "count": {} }}
-            , .{ res.x, res.z, res.count }),
             .csv => self.print("{},{},{}\n", .{ res.x, res.z, res.count }),
         }
     }
@@ -133,9 +123,6 @@ const OutputContext = struct {
     pub fn flush(self: *OutputContext) void {
         for (self.buf.items) |res| {
             self.output(res);
-        }
-        if (self.options.format == .json) {
-            self.print("\n]\n", .{});
         }
         self.buf.deinit();
     }
@@ -147,7 +134,6 @@ pub const OutputOptions = struct {
 
     const Format = enum {
         csv,
-        json,
         human,
     };
 };
@@ -157,7 +143,7 @@ fn usage(out: std.fs.File) void {
         \\Usage: slimy [OPTIONS] SEED RANGE THRESHOLD
         \\
         \\  -h              Display this help message
-        \\  -f FORMAT       Output format (human [default], csv, or json)
+        \\  -f FORMAT       Output format (human [default] or csv)
         \\  -u              Disable output sorting
         \\  -m METHOD       Search method (gpu [default] or cpu)
         \\  -j THREADS      Number of threads to use (for cpu method only)
