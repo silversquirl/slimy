@@ -5,6 +5,8 @@ pub fn build(b: *std.build.Builder) !void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
     const singlethread = b.option(bool, "singlethread", "Build in single-threaded mode") orelse false;
+    const strip = b.option(bool, "strip", "Strip debug info from binaries") orelse false;
+    const suffix = b.option(bool, "suffix", "Suffix binary names with the target triple") orelse false;
 
     const shaders = b.addSystemCommand(&.{
         "glslc", "-o", "search.spv", "search.comp",
@@ -15,7 +17,11 @@ pub fn build(b: *std.build.Builder) !void {
     deps.add("https://github.com/silversquirl/optz", "main");
     deps.add("https://github.com/silversquirl/zcompute", "main");
 
-    const exe = b.addExecutable("slimy", "src/main.zig");
+    const exe_name = if (suffix)
+        b.fmt("slimy-{s}", .{target.zigTriple(b.allocator) catch unreachable})
+    else
+        "slimy";
+    const exe = b.addExecutable(exe_name, "src/main.zig");
     deps.addTo(exe);
     exe.linkLibC();
     exe.step.dependOn(&shaders.step);
@@ -24,6 +30,7 @@ pub fn build(b: *std.build.Builder) !void {
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.single_threaded = singlethread;
+    exe.strip = strip;
     exe.install();
 
     const run_cmd = exe.run();

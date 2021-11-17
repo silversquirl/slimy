@@ -1,11 +1,10 @@
-name: Deploy GitHub Pages
+name: Build native binaries
 
 on:
   push:
     branches: [main]
     paths:
       - 'src/**'
-      - 'web/**'
       - '**.zig'
 
 jobs:
@@ -25,9 +24,11 @@ jobs:
         with: {version: master}
 
       - run: zig build update
-      - run: zig build -Drelease-safe web
+      - run: zig build -Drelease-safe -Dsuffix -Dstrip -Dtarget=x86_64-linux-gnu
+      - run: zig build -Drelease-safe -Dsuffix -Dstrip -Dtarget=x86_64-linux-musl
+      - run: zig build -Drelease-safe -Dsuffix -Dstrip -Dtarget=x86_64-windows
 
-      - uses: peaceiris/actions-gh-pages@v3
+      - uses: actions/upload-artifact@v2
         with:
-          github_token: ${{secrets.GITHUB_TOKEN}}
-          publish_dir: ./zig-out/web
+          name: binaries
+          path: zig-out/bin/slimy-*-*
