@@ -4,11 +4,12 @@ pub const gpu = @import("gpu.zig");
 pub fn search(
     params: SearchParams,
     context: anytype,
-    comptime callback: fn (@TypeOf(context), Result) void,
+    comptime resultCallback: fn (@TypeOf(context), Result) void,
+    comptime progressCallback: ?fn (@TypeOf(context), completed: u64, total: u64) void,
 ) !void {
     switch (params.method) {
-        .cpu => try cpu.search(params, context, callback, null),
-        .gpu => try gpu.search(params, context, callback, null),
+        .cpu => try cpu.search(params, context, resultCallback, progressCallback),
+        .gpu => try gpu.search(params, context, resultCallback, progressCallback),
     }
 }
 

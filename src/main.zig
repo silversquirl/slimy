@@ -62,7 +62,12 @@ pub fn main() u8 {
     var ctx = OutputContext.init(std.heap.page_allocator, options.output);
     defer ctx.flush();
 
-    slimy.search(options.search, &ctx, OutputContext.result) catch |err| switch (err) {
+    slimy.search(
+        options.search,
+        &ctx,
+        OutputContext.result,
+        OutputContext.progress,
+    ) catch |err| switch (err) {
         error.ThreadQuotaExceeded => @panic("Thread quota exceeded"),
         error.SystemResources => @panic("System resources error"),
         error.OutOfMemory => @panic("Out of memory"),
@@ -84,13 +89,27 @@ const OutputContext = struct {
     f: std.fs.File,
     options: OutputOptions,
     buf: std.ArrayList(slimy.Result),
-    first: bool = true, // True if no results have been output
+
+    progress_timer: ?std.time.Timer,
+
+    const progress_tick = std.time.ns_per_s / 4;
+    const progress_spinner = [_]u21{
+        '◜',
+        '◝',
+        '◞',
+        '◟',
+    };
 
     pub fn init(allocator: *std.mem.Allocator, options: OutputOptions) OutputContext {
         return OutputContext{
             .f = std.io.getStdOut(),
             .options = options,
             .buf = std.ArrayList(slimy.Result).init(allocator),
+
+            .progress_timer = if (options.progress)
+                std.time.Timer.start() catch null
+            else
+                null,
         };
     }
 
@@ -113,10 +132,26 @@ const OutputContext = struct {
         };
     }
     fn output(self: *OutputContext, res: slimy.Result) void {
-        self.first = false;
+        self.progressLineClear();
         switch (self.options.format) {
             .human => self.print("({:>5}, {:>5})   {}\n", .{ res.x, res.z, res.count }),
             .csv => self.print("{},{},{}\n", .{ res.x, res.z, res.count }),
+        }
+    }
+
+    fn progressLineClear(self: *OutputContext) void {
+        if (self.progress_timer != null) {
+            std.debug.print("\r\x1b[K", .{});
+        }
+    }
+    pub fn progress(self: *OutputContext, completed: u64, total: u64) void {
+        if (self.progress_timer) |timer| {
+            const tick = timer.read() / progress_tick;
+            self.progressLineClear();
+            std.debug.print("[{u}] {d:.2}%", .{
+                progress_spinner[tick % progress_spinner.len],
+                @intToFloat(f64, 100_00 * completed / total) * 0.01,
+            });
         }
     }
 
@@ -124,6 +159,7 @@ const OutputContext = struct {
         for (self.buf.items) |res| {
             self.output(res);
         }
+        self.progressLineClear();
         self.buf.deinit();
     }
 };
@@ -131,6 +167,7 @@ const OutputContext = struct {
 pub const OutputOptions = struct {
     format: Format,
     sort: bool,
+    progress: bool,
 
     const Format = enum {
         csv,
@@ -145,6 +182,7 @@ fn usage(out: std.fs.File) void {
         \\  -h              Display this help message
         \\  -f FORMAT       Output format (human [default] or csv)
         \\  -u              Disable output sorting
+        \\  -q              Disable progress reporting
         \\  -m METHOD       Search method (gpu [default] or cpu)
         \\  -j THREADS      Number of threads to use (for cpu method only)
         \\
@@ -167,6 +205,7 @@ fn parseArgs() !Options {
 
         f: []const u8 = "human",
         u: bool = false,
+        q: bool = false,
 
         m: []const u8 = "gpu",
         j: u8 = 0,
@@ -179,6 +218,8 @@ fn parseArgs() !Options {
     const format = std.meta.stringToEnum(OutputOptions.Format, flags.f) orelse {
         return error.InvalidFormat;
     };
+
+    const progress = !flags.q and std.io.getStdErr().supportsAnsiEscapeCodes();
 
     const method = std.meta.stringToEnum(std.meta.Tag(slimy.SearchMethod), flags.m) orelse {
         return error.InvalidMethod;
@@ -224,6 +265,7 @@ fn parseArgs() !Options {
         .output = .{
             .format = format,
             .sort = !flags.u,
+            .progress = progress,
         },
     };
 }
