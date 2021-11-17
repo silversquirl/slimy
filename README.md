@@ -7,6 +7,8 @@ It can search on either the CPU or the GPU, and makes use of multithreading to s
 
 ## Usage
 
+**NOTE: Slimy uses entirely chunk coordinates. This means you should multiply all result coordinates by 16 to get the corresponding block coordinates**
+
 For small searches, I recommend using the [web interface][slimy-web], which will run in your browser.
 This is slower than the native binaries, but is much easier to use and can still search a 5000 chunk range in less than 15 seconds.
 
