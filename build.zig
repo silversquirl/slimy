@@ -7,9 +7,10 @@ pub fn build(b: *std.build.Builder) !void {
     const singlethread = b.option(bool, "singlethread", "Build in single-threaded mode") orelse false;
     const strip = b.option(bool, "strip", "Strip debug info from binaries") orelse false;
     const suffix = b.option(bool, "suffix", "Suffix binary names with the target triple") orelse false;
+    const glslc = b.option([]const u8, "glslc", "Specify the path to the glslc binary") orelse "glslc";
 
     const shaders = b.addSystemCommand(&.{
-        "glslc", "-o", "search.spv", "search.comp",
+        glslc, "-o", "search.spv", "search.comp",
     });
     shaders.cwd = std.fs.path.join(b.allocator, &.{ b.build_root, "src", "shader" }) catch unreachable;
 

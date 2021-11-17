@@ -23,10 +23,22 @@ jobs:
       - uses: goto-bus-stop/setup-zig@v1
         with: {version: master}
 
+      # TODO: figure out a way to cache this
+      - run: ./.github/workflows/install-shaderc.sh
+
       - run: zig build update
-      - run: zig build -Drelease-safe -Dsuffix -Dstrip -Dtarget=x86_64-linux-gnu
-      - run: zig build -Drelease-safe -Dsuffix -Dstrip -Dtarget=x86_64-linux-musl
-      - run: zig build -Drelease-safe -Dsuffix -Dstrip -Dtarget=x86_64-windows
+
+      - run: |
+          zig build -Drelease-safe -Dglslc="$PWD/shaderc/bin/glslc" \
+                    -Dsuffix -Dstrip -Dtarget=x86_64-linux-gnu
+
+      - run: |
+          zig build -Drelease-safe -Dglslc="$PWD/shaderc/bin/glslc" \
+                    -Dsuffix -Dstrip -Dtarget=x86_64-linux-musl
+
+      - run: |
+          zig build -Drelease-safe -Dglslc="$PWD/shaderc/bin/glslc" \
+                    -Dsuffix -Dstrip -Dtarget=x86_64-windows
 
       - uses: actions/upload-artifact@v2
         with:
