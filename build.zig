@@ -19,6 +19,7 @@ pub fn build(b: *std.build.Builder) !void {
     deps.addTo(exe);
     exe.linkLibC();
     exe.step.dependOn(&shaders.step);
+    exe.linkage = .dynamic;
 
     exe.setTarget(target);
     exe.setBuildMode(mode);
