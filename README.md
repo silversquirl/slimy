@@ -33,7 +33,9 @@ slimy-SYSTEM -- SEED RANGE THRESHOLD
 Once you run the command, it may take a few seconds to complete.
 Just wait until it's finished and it'll output the results once it's done.
 
-If you get errors about Vulkan initialization, you can use the CPU search mode like this:
+On systems with integrated GPUs, the CPU search may be faster than GPU search.
+Some older GPUs may not be able to use the GPU search at all - this will be reported as an error in Vulkan initialization.
+In these cases, you can use the CPU search mode like this:
 
 ```
 slimy-SYSTEM -mcpu -- SEED RANGE THRESHOLD
