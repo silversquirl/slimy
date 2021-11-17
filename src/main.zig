@@ -74,7 +74,10 @@ pub fn main() u8 {
         error.LockedMemoryLimitExceeded => unreachable,
         error.Unexpected => @panic("Unexpected error"),
 
-        error.VulkanInit => @panic("Vulkan init failed"),
+        error.VulkanInit => {
+            std.log.err("Vulkan initialization failed. Your GPU may not support Vulkan; try using the CPU search instead (-mcpu option)", .{});
+            return 1;
+        },
         error.ShaderInit => @panic("Compute pipeline init failed"),
         error.BufferInit => @panic("Buffer allocation failed"),
         error.ShaderExec => @panic("GPU compute execution failed"),
