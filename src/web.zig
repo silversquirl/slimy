@@ -3,7 +3,7 @@ const slimy = @import("slimy.zig");
 
 export fn searchInit(
     world_seed: i64,
-    threshold: u32,
+    threshold: i32,
     x0: i32,
     x1: i32,
     z0: i32,
