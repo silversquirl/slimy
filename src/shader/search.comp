@@ -1,0 +1,81 @@
+#version 450
+#define MASK_DIM 17 // TODO: make customizable at runtime
+layout(local_size_x = MASK_DIM, local_size_y = MASK_DIM) in;
+
+struct Result {
+	int x;
+	int z;
+	uint count;
+};
+
+// TODO: un-hardcode
+int mask_bitmap[17][17] = {
+	{0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0},
+	{0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0},
+	{0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0},
+	{0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0},
+	{0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0},
+	{0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0},
+	{0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0},
+	{0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0},
+	{1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1},
+	{0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0},
+	{0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0},
+	{0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0},
+	{0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0},
+	{0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0},
+	{0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0},
+	{0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0},
+	{0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0},
+};
+
+layout(std140, push_constant) uniform Params {
+	uvec2 world_seed;
+	ivec2 offset;
+	int threshold;
+};
+layout(std430, binding = 0) buffer ResultCount {
+	uint result_count;
+};
+layout(std430, binding = 1) buffer Results {
+	Result results[];
+};
+
+#include "slime.glsl"
+
+shared int count;
+bool checkThreshold(int threshold, int count) {
+	if (threshold < 0) {
+		return count <= -threshold;
+	} else {
+		return count >= threshold;
+	}
+}
+
+void main() {
+	// Init shared var
+	if (gl_LocalInvocationIndex == MASK_DIM*MASK_DIM/2) {
+		count = 0;
+	}
+	memoryBarrierShared();
+	barrier();
+
+	// Compute slime chunks
+	ivec2 coord = ivec2(gl_WorkGroupID.xy + gl_LocalInvocationID.xy) + offset;
+	bool slime = isSlime(coord);
+	ivec2 mask_coord = ivec2(gl_LocalInvocationID.xy);
+	int mask = mask_bitmap[mask_coord.y][mask_coord.x];
+
+	atomicAdd(count, int(slime) * mask);
+	memoryBarrierShared();
+	barrier();
+
+	// Check threshold and report results
+	if (gl_LocalInvocationIndex == MASK_DIM*MASK_DIM/2) {
+		if (checkThreshold(threshold, count)) {
+			uint idx = atomicAdd(result_count, 1);
+			results[idx] = Result(coord.x, coord.y, count);
+		}
+	}
+}
+

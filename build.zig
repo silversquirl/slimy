@@ -6,11 +6,20 @@ pub fn build(b: *std.build.Builder) !void {
     const mode = b.standardReleaseOptions();
     const singlethread = b.option(bool, "singlethread", "Build in single-threaded mode") orelse false;
 
+    const shaders = b.addSystemCommand(&.{
+        "glslc", "-o", "search.spv", "search.comp",
+    });
+    shaders.cwd = std.fs.path.join(b.allocator, &.{ b.build_root, "src", "shader" }) catch unreachable;
+
     const deps = Deps.init(b);
     deps.add("https://github.com/silversquirl/optz", "main");
+    deps.add("https://github.com/silversquirl/zcompute", "main");
 
     const exe = b.addExecutable("slimy", "src/main.zig");
     deps.addTo(exe);
+    exe.linkLibC();
+    exe.step.dependOn(&shaders.step);
+
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.single_threaded = singlethread;

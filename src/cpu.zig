@@ -1,31 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const common = @import("common.zig");
 const slimy = @import("slimy.zig");
-
-// Search mask; row-major; bottom-left origin
-const mask_bitmap = blk: {
-    const inner = 1;
-    const outer = 8;
-
-    const dim = 2 * outer + 1;
-    var bitmap: [dim][dim]bool = undefined;
-    for (bitmap) |*row, y| {
-        for (row) |*bit, x| {
-            const rx = @intCast(i32, x) - outer;
-            const ry = @intCast(i32, y) - outer;
-            const d2 = rx * rx + ry * ry;
-            bit.* =
-                // Outside inner circle
-                inner * inner < d2 and
-                // Inside outer circle
-                d2 <= outer * outer;
-        }
-    }
-
-    break :blk bitmap;
-};
-const mask_width = mask_bitmap[0].len;
-const mask_height = mask_bitmap.len;
 
 fn isSlime(world_seed: i64, x: i32, z: i32) bool {
     @setRuntimeSafety(false);
@@ -83,10 +59,10 @@ fn checkLocation(world_seed: i64, cx: i32, cz: i32) u32 {
     @setRuntimeSafety(false);
 
     var count: u32 = 0;
-    for (mask_bitmap) |row, mz| {
+    for (common.mask) |row, mz| {
         for (row) |bit, mx| {
             const x = @intCast(i32, mx) + cx - row.len / 2;
-            const z = @intCast(i32, mz) + cz - mask_bitmap.len / 2;
+            const z = @intCast(i32, mz) + cz - common.mask.len / 2;
             count += @boolToInt(bit and isSlime(world_seed, x, z));
         }
     }
@@ -121,7 +97,7 @@ pub fn search(
 pub fn Searcher(comptime Context: type) type {
     return struct {
         world_seed: i64,
-        threshold: u32,
+        threshold: i32,
 
         x0: i32,
         z0: i32,

@@ -35,7 +35,11 @@ pub fn main() u8 {
             return 1;
         },
         error.InvalidFormat => {
-            std.log.err("Invalid output format. Must be 'csv', 'json' or 'human'", .{});
+            std.log.err("Invalid output format. Must be 'human', 'csv', or 'json'", .{});
+            return 1;
+        },
+        error.InvalidMethod => {
+            std.log.err("Invalid search method. Must be 'gpu' or 'cpu'", .{});
             return 1;
         },
         error.InvalidCharacter => {
@@ -64,6 +68,13 @@ pub fn main() u8 {
         error.OutOfMemory => @panic("Out of memory"),
         error.LockedMemoryLimitExceeded => unreachable,
         error.Unexpected => @panic("Unexpected error"),
+
+        error.VulkanInit => @panic("Vulkan init failed"),
+        error.ShaderInit => @panic("Compute pipeline init failed"),
+        error.BufferInit => @panic("Buffer allocation failed"),
+        error.ShaderExec => @panic("GPU compute execution failed"),
+        error.Timeout => @panic("Shader execution timed out"),
+        error.MemoryMapFailed => @panic("Mapping buffer memory failed"),
     };
 
     return 0;
@@ -146,9 +157,10 @@ fn usage(out: std.fs.File) void {
         \\Usage: slimy [OPTIONS] SEED RANGE THRESHOLD
         \\
         \\  -h              Display this help message
-        \\  -f FORMAT       Output format (csv, json or human)
+        \\  -f FORMAT       Output format (human [default], csv, or json)
         \\  -u              Disable output sorting
-        \\  -j THREADS      Number of threads to use
+        \\  -m METHOD       Search method (gpu [default] or cpu)
+        \\  -j THREADS      Number of threads to use (for cpu method only)
         \\
         \\
     ) catch return;
@@ -169,6 +181,8 @@ fn parseArgs() !Options {
 
         f: []const u8 = "human",
         u: bool = false,
+
+        m: []const u8 = "gpu",
         j: u8 = 0,
     }, &args);
 
@@ -180,15 +194,21 @@ fn parseArgs() !Options {
         return error.InvalidFormat;
     };
 
-    if (builtin.single_threaded) {
-        if (flags.j == 0) {
-            flags.j = 1;
-        } else if (flags.j != 1) {
-            return error.SingleThreaded;
-        }
-    } else {
-        if (flags.j == 0) {
-            flags.j = std.math.lossyCast(u8, std.Thread.getCpuCount() catch 1);
+    const method = std.meta.stringToEnum(std.meta.Tag(slimy.SearchMethod), flags.m) orelse {
+        return error.InvalidMethod;
+    };
+
+    if (method == .cpu) {
+        if (builtin.single_threaded) {
+            if (flags.j == 0) {
+                flags.j = 1;
+            } else if (flags.j != 1) {
+                return error.SingleThreaded;
+            }
+        } else {
+            if (flags.j == 0) {
+                flags.j = std.math.lossyCast(u8, std.Thread.getCpuCount() catch 1);
+            }
         }
     }
 
@@ -203,15 +223,16 @@ fn parseArgs() !Options {
     return Options{
         .search = .{
             .world_seed = try std.fmt.parseInt(i64, seed, 10),
-            .threshold = try std.fmt.parseInt(u32, threshold, 10),
+            .threshold = try std.fmt.parseInt(i32, threshold, 10),
 
             .x0 = -range_n,
             .z0 = -range_n,
             .x1 = range_n,
             .z1 = range_n,
 
-            .method = .{
-                .cpu = flags.j,
+            .method = switch (method) {
+                .gpu => .gpu,
+                .cpu => .{ .cpu = flags.j },
             },
         },
         .output = .{

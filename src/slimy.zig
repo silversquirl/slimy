@@ -1,4 +1,5 @@
 pub const cpu = @import("cpu.zig");
+pub const gpu = @import("gpu.zig");
 
 pub fn search(
     params: SearchParams,
@@ -7,13 +8,13 @@ pub fn search(
 ) !void {
     switch (params.method) {
         .cpu => try cpu.search(params, context, callback, null),
-        .gpu => @panic("TODO: gpu search"),
+        .gpu => try gpu.search(params, context, callback, null),
     }
 }
 
 pub const SearchParams = struct {
     world_seed: i64,
-    threshold: u32,
+    threshold: i32,
 
     x0: i32,
     z0: i32,
