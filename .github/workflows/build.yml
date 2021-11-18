@@ -24,21 +24,18 @@ jobs:
         with: {version: master}
 
       # TODO: figure out a way to cache this
-      - run: ./.github/workflows/install-shaderc.sh
+      - name: Install ShaderC
+        run: ./.github/workflows/install-shaderc.sh
 
-      - run: zig build update
+      - name: Update dependencies
+        run: zig build update
 
-      - run: |
-          zig build -Drelease-safe -Dglslc="$PWD/shaderc/bin/glslc" \
-                    -Dsuffix -Dstrip -Dtarget=x86_64-linux-gnu
-
-      - run: |
-          zig build -Drelease-safe -Dglslc="$PWD/shaderc/bin/glslc" \
-                    -Dsuffix -Dstrip -Dtarget=x86_64-linux-musl
-
-      - run: |
-          zig build -Drelease-safe -Dglslc="$PWD/shaderc/bin/glslc" \
-                    -Dsuffix -Dstrip -Dtarget=x86_64-windows
+      - name: Build for x86_64 Linux glibc
+        run: ./.github/workflows/actions-build.sh x86_64-linux-gnu
+      - name: Build for x86_64 Linux musl
+        run: ./.github/workflows/actions-build.sh x86_64-linux-musl
+      - name: Build for x86_64 Windows
+        run: ./.github/workflows/actions-build.sh x86_64-windows
 
       - uses: actions/upload-artifact@v2
         with:

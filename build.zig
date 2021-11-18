@@ -1,12 +1,15 @@
 const std = @import("std");
 const Deps = @import("Deps.zig");
 
+const slimy_version = std.SemanticVersion.parse("0.1.0-dev") catch unreachable;
+
 pub fn build(b: *std.build.Builder) !void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
     const singlethread = b.option(bool, "singlethread", "Build in single-threaded mode") orelse false;
     const strip = b.option(bool, "strip", "Strip debug info from binaries") orelse false;
     const suffix = b.option(bool, "suffix", "Suffix binary names with the target triple") orelse false;
+    const timestamp = b.option(bool, "timestamp", "Include build timestamp in version information") orelse false;
     const glslc = b.option([]const u8, "glslc", "Specify the path to the glslc binary") orelse "glslc";
 
     const shaders = b.addSystemCommand(&.{
@@ -17,6 +20,22 @@ pub fn build(b: *std.build.Builder) !void {
     const deps = Deps.init(b);
     deps.add("https://github.com/silversquirl/optz", "main");
     deps.add("https://github.com/silversquirl/zcompute", "main");
+
+    var version = slimy_version;
+    if (version.pre != null) {
+        var code: u8 = undefined;
+        if (b.execAllowFail(&.{ "git", "rev-parse", "--short", "HEAD" }, &code, .Inherit)) |commit| {
+            version.build = std.mem.trimRight(u8, commit, "\n");
+        } else |err| switch (err) {
+            error.FileNotFound => {}, // No git
+            else => |e| return e,
+        }
+    }
+
+    const consts = b.addOptions();
+    consts.addOption(std.SemanticVersion, "version", version);
+    consts.addOption(?i64, "timestamp", if (timestamp) std.time.timestamp() else null);
+    deps.addPackage(consts.getPackage("build_consts"));
 
     const exe_name = if (suffix)
         b.fmt("slimy-{s}", .{target.zigTriple(b.allocator) catch unreachable})

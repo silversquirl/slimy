@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const optz = @import("optz");
 const slimy = @import("slimy.zig");
+const version = @import("version.zig");
 
 pub fn main() u8 {
     const stdout = std.io.getStdOut();
@@ -10,6 +11,11 @@ pub fn main() u8 {
     const options = parseArgs() catch |err| switch (err) {
         error.Help => {
             usage(stdout);
+            return 0;
+        },
+
+        error.Version => {
+            stdout.writeAll(version.full_desc ++ "\n") catch {};
             return 0;
         },
 
@@ -183,6 +189,7 @@ fn usage(out: std.fs.File) void {
         \\Usage: slimy [OPTIONS] SEED RANGE THRESHOLD
         \\
         \\  -h              Display this help message
+        \\  -v              Display version information
         \\  -f FORMAT       Output format (human [default] or csv)
         \\  -u              Disable output sorting
         \\  -q              Disable progress reporting
@@ -205,6 +212,7 @@ fn parseArgs() !Options {
     var args = std.process.args();
     var flags = try optz.parse(&arena.allocator, struct {
         h: bool = false,
+        v: bool = false,
 
         f: []const u8 = "human",
         u: bool = false,
@@ -214,9 +222,8 @@ fn parseArgs() !Options {
         j: u8 = 0,
     }, &args);
 
-    if (flags.h) {
-        return error.Help;
-    }
+    if (flags.h) return error.Help;
+    if (flags.v) return error.Version;
 
     const format = std.meta.stringToEnum(OutputOptions.Format, flags.f) orelse {
         return error.InvalidFormat;

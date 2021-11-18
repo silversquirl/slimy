@@ -24,10 +24,13 @@ jobs:
       - uses: goto-bus-stop/setup-zig@v1
         with: {version: master}
 
-      - run: zig build update
-      - run: zig build -Drelease-safe web
+      - name: Update dependencies
+        run: zig build update
+      - name: Build web interface
+        run: zig build -Drelease-safe web
 
-      - uses: peaceiris/actions-gh-pages@v3
+      - name: Deploy to GitHub pages
+        uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{secrets.GITHUB_TOKEN}}
           publish_dir: ./zig-out/web
