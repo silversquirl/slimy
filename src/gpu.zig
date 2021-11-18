@@ -9,79 +9,115 @@ pub fn search(
     comptime resultCallback: fn (@TypeOf(callback_context), slimy.Result) void,
     comptime progressCallback: ?fn (@TypeOf(callback_context), completed: u64, total: u64) void,
 ) !void {
-    var ctx = zc.Context.init(std.heap.c_allocator, .{}) catch return error.VulkanInit;
+    var ctx = try Context.init();
     defer ctx.deinit();
+    try ctx.search(params, callback_context, resultCallback, progressCallback);
+}
 
-    var shad = zc.Shader(&.{
+pub const Context = struct {
+    ctx: zc.Context,
+    inited: bool = false,
+    shad: Shader = undefined,
+    buffers: [2]ResultBuffers = undefined,
+    buf_idx: u1 = 0,
+
+    const Shader = zc.Shader(&.{
         zc.pushConstant("params", 0, GpuParams),
         zc.storageBuffer("result_count", 0, zc.Buffer(u32)),
         zc.storageBuffer("results", 1, zc.Buffer(slimy.Result)),
-    }).initBytes(&ctx, @embedFile("shader/search.spv")) catch return error.ShaderInit;
-    defer shad.deinit();
+    });
 
-    // Result buffers - two of these so we can double-buffer
-    var results: [2]ResultBuffers = undefined;
-    results[0] = ResultBuffers.init(&ctx) catch return error.BufferInit;
-    defer results[0].deinit();
-    results[1] = ResultBuffers.init(&ctx) catch return error.BufferInit;
-    defer results[1].deinit();
+    pub fn init() !Context {
+        return Context{
+            .ctx = zc.Context.init(std.heap.c_allocator, .{}) catch return error.VulkanInit,
+        };
+    }
+    fn initInternal(self: *Context) !void {
+        self.shad = Shader.initBytes(&self.ctx, @embedFile("shader/search.spv")) catch return error.ShaderInit;
+        errdefer self.shad.deinit();
 
-    var buf_idx: u1 = 0;
+        // Result buffers - two of these so we can double-buffer
+        self.buffers[0] = ResultBuffers.init(&self.ctx) catch return error.BufferInit;
+        errdefer self.buffers[0].deinit();
+        self.buffers[1] = ResultBuffers.init(&self.ctx) catch return error.BufferInit;
+        errdefer self.buffers[1].deinit();
 
-    const useed = @bitCast(u64, params.world_seed);
-    const gpu_params = GpuParams{
-        .world_seed = .{
-            @intCast(u32, useed >> 32),
-            @truncate(u32, useed),
-        },
-        .offset = .{ params.x0, params.z0 },
-        .threshold = params.threshold,
-    };
+        self.inited = true;
+    }
 
-    const search_size = [2]u32{
-        @intCast(u32, @as(i33, params.x1) - params.x0),
-        @intCast(u32, @as(i33, params.z1) - params.z0),
-    };
-    var z: u32 = 0;
-    while (z < search_size[1]) : (z += batch_size[1]) {
-        const batch_z = @minimum(search_size[1] - z, batch_size[1]);
+    pub fn deinit(self: Context) void {
+        if (self.inited) {
+            self.buffers[0].deinit();
+            self.buffers[1].deinit();
+            self.shad.deinit();
+        }
+        self.ctx.deinit();
+    }
 
-        var x: u32 = 0;
-        while (x < search_size[0]) : (x += batch_size[0]) {
-            const batch_x = @minimum(search_size[0] - x, batch_size[0]);
+    pub fn search(
+        self: *Context,
+        params: slimy.SearchParams,
+        callback_context: anytype,
+        comptime resultCallback: fn (@TypeOf(callback_context), slimy.Result) void,
+        comptime progressCallback: ?fn (@TypeOf(callback_context), completed: u64, total: u64) void,
+    ) !void {
+        if (!self.inited) try self.initInternal();
 
-            if (progressCallback) |cb| {
-                const chunk_index = x + z * search_size[0];
-                cb(callback_context, chunk_index, search_size[0] * search_size[1]);
-            }
+        const useed = @bitCast(u64, params.world_seed);
+        const gpu_params = GpuParams{
+            .world_seed = .{
+                @intCast(u32, useed >> 32),
+                @truncate(u32, useed),
+            },
+            .offset = .{ params.x0, params.z0 },
+            .threshold = params.threshold,
+        };
 
-            shad.exec(std.time.ns_per_s, .{
-                .x = batch_x,
-                .y = batch_z,
-                .baseX = x,
-                .baseY = z,
-            }, .{
-                .params = gpu_params,
-                .result_count = results[buf_idx].count,
-                .results = results[buf_idx].results,
-            }) catch |err| switch (err) {
-                error.Timeout => return error.Timeout,
-                else => return error.ShaderExec,
-            };
-            buf_idx ^= 1;
+        const search_size = [2]u32{
+            @intCast(u32, @as(i33, params.x1) - params.x0),
+            @intCast(u32, @as(i33, params.z1) - params.z0),
+        };
+        var z: u32 = 0;
+        while (z < search_size[1]) : (z += batch_size[1]) {
+            const batch_z = @minimum(search_size[1] - z, batch_size[1]);
 
-            if (x != 0 or z != 0) {
-                try results[buf_idx].report(callback_context, resultCallback);
+            var x: u32 = 0;
+            while (x < search_size[0]) : (x += batch_size[0]) {
+                const batch_x = @minimum(search_size[0] - x, batch_size[0]);
+
+                if (progressCallback) |cb| {
+                    const chunk_index = x + z * search_size[0];
+                    cb(callback_context, chunk_index, search_size[0] * search_size[1]);
+                }
+
+                self.shad.exec(std.time.ns_per_s, .{
+                    .x = batch_x,
+                    .y = batch_z,
+                    .baseX = x,
+                    .baseY = z,
+                }, .{
+                    .params = gpu_params,
+                    .result_count = self.buffers[self.buf_idx].count,
+                    .results = self.buffers[self.buf_idx].results,
+                }) catch |err| switch (err) {
+                    error.Timeout => return error.Timeout,
+                    else => return error.ShaderExec,
+                };
+                self.buf_idx ^= 1;
+
+                if (x != 0 or z != 0) {
+                    try self.buffers[self.buf_idx].report(callback_context, resultCallback);
+                }
             }
         }
-    }
 
-    if (!(shad.waitTimeout(std.time.ns_per_s) catch return error.ShaderExec)) {
-        return error.Timeout;
+        if (!(self.shad.waitTimeout(std.time.ns_per_s) catch return error.ShaderExec)) {
+            return error.Timeout;
+        }
+        self.buf_idx ^= 1;
+        try self.buffers[self.buf_idx].report(callback_context, resultCallback);
     }
-    buf_idx ^= 1;
-    try results[buf_idx].report(callback_context, resultCallback);
-}
+};
 
 const ResultBuffers = struct {
     count: zc.Buffer(u32),
