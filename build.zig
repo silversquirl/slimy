@@ -8,7 +8,7 @@ pub fn build(b: *std.build.Builder) !void {
     const mode = b.standardReleaseOptions();
     const singlethread = b.option(bool, "singlethread", "Build in single-threaded mode") orelse false;
     const strip = b.option(bool, "strip", "Strip debug info from binaries") orelse false;
-    const suffix = b.option(bool, "suffix", "Suffix binary names with the target triple") orelse false;
+    const suffix = b.option(bool, "suffix", "Suffix binary names with version and target") orelse false;
     const timestamp = b.option(bool, "timestamp", "Include build timestamp in version information") orelse false;
     const glslc = b.option([]const u8, "glslc", "Specify the path to the glslc binary") orelse "glslc";
 
@@ -23,9 +23,24 @@ pub fn build(b: *std.build.Builder) !void {
 
     var version = slimy_version;
     if (version.pre != null) {
+        // Find git commit hash
         var code: u8 = undefined;
-        if (b.execAllowFail(&.{ "git", "rev-parse", "--short", "HEAD" }, &code, .Inherit)) |commit| {
+        if (b.execAllowFail(
+            &.{ "git", "rev-parse", "--short", "HEAD" },
+            &code,
+            .Inherit,
+        )) |commit| {
             version.build = std.mem.trimRight(u8, commit, "\n");
+
+            // Add -dirty if we have uncommitted changes
+            _ = b.execAllowFail(
+                &.{ "git", "diff-index", "--quiet", "HEAD" },
+                &code,
+                .Inherit,
+            ) catch |err| switch (err) {
+                error.ExitCodeFailure => version.build = b.fmt("{s}-dirty", .{version.build}),
+                else => |e| return e,
+            };
         } else |err| switch (err) {
             error.FileNotFound => {}, // No git
             else => |e| return e,
@@ -38,7 +53,7 @@ pub fn build(b: *std.build.Builder) !void {
     deps.addPackage(consts.getPackage("build_consts"));
 
     const exe_name = if (suffix)
-        b.fmt("slimy-{s}", .{target.zigTriple(b.allocator) catch unreachable})
+        b.fmt("slimy-{}-{s}", .{ version, target.zigTriple(b.allocator) catch unreachable })
     else
         "slimy";
     const exe = b.addExecutable(exe_name, "src/main.zig");

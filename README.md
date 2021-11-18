@@ -13,11 +13,11 @@ For small searches, I recommend using the [web interface][slimy-web], which will
 This is slower than the native binaries, but is much easier to use and can still search a 5000 chunk range in less than 15 seconds.
 
 For large scale searches, use the native version. The latest build can be downloaded [here][builds].
-The correct binary for your system is listed below:
+The correct binary for your system is listed below (where `RANDOM` is a combination of letters and numbers):
 
-- `slimy-x86_64-windows` for Windows systems
-- `slimy-x86_64-linux-gnu` for most Linux systems
-- `slimy-x86_64-linux-musl` for Linux systems using musl libc - if you need this, you'll know
+- `slimy-0.1.0-dev+RANDOM-x86_64-windows` for Windows systems
+- `slimy-0.1.0-dev+RANDOM-x86_64-linux-gnu` for most Linux systems
+- `slimy-0.1.0-dev+RANDOM-x86_64-linux-musl` for Linux systems using musl libc - if you need this, you'll know
 
 Once you have the right binary, open a terminal or command prompt in the folder containing it, and run the following command:
 
