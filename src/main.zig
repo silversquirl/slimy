@@ -95,6 +95,8 @@ pub fn main() u8 {
 }
 
 const OutputContext = struct {
+    lock: std.Thread.Mutex = .{},
+
     f: std.fs.File,
     options: OutputOptions,
     buf: std.ArrayList(slimy.Result),
@@ -123,6 +125,9 @@ const OutputContext = struct {
     }
 
     pub fn result(self: *OutputContext, res: slimy.Result) void {
+        self.lock.lock();
+        defer self.lock.unlock();
+
         if (self.options.sort) {
             self.buf.append(res) catch {
                 std.log.warn("Out of memory while attempting to sort items; output may be unsorted", .{});
@@ -154,6 +159,9 @@ const OutputContext = struct {
         }
     }
     pub fn progress(self: *OutputContext, completed: u64, total: u64) void {
+        self.lock.lock();
+        defer self.lock.unlock();
+
         if (self.progress_timer) |timer| {
             const tick = timer.read() / progress_tick;
             self.progressLineClear();
