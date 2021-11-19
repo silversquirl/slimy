@@ -54,6 +54,7 @@ pub const Context = struct {
         };
         errdefer self.buffers[1].deinit();
 
+        log.debug("init ok", .{});
         self.inited = true;
     }
 
@@ -73,6 +74,7 @@ pub const Context = struct {
     ) !void {
         std.debug.assert(self.inited);
 
+        log.debug("start search", .{});
         const useed = @bitCast(u64, params.world_seed);
         const gpu_params = GpuParams{
             .world_seed = .{
@@ -96,8 +98,8 @@ pub const Context = struct {
                 const batch_x = @minimum(search_size[0] - x, batch_size[0]);
 
                 if (progressCallback) |cb| {
-                    const chunk_index = x + z * search_size[0];
-                    cb(callback_context, chunk_index, search_size[0] * search_size[1]);
+                    const chunk_index = x + z * @as(u64, search_size[0]);
+                    cb(callback_context, chunk_index, @as(u64, search_size[0]) * search_size[1]);
                 }
 
                 self.shad.exec(std.time.ns_per_s, .{
@@ -115,7 +117,7 @@ pub const Context = struct {
                 };
                 self.buf_idx ^= 1;
 
-                if (x != 0 or z != 0) {
+                if (x != 0 or z != 0) { // If we're the first batch, there are no previous results to report
                     try self.buffers[self.buf_idx].report(callback_context, resultCallback);
                 }
             }
