@@ -89,6 +89,40 @@ For example, the following command will perform a CPU search with 4 threads:
 slimy-SYSTEM -m cpu -j 4 -- SEED RANGE THRESHOLD
 ```
 
+### JSON search parameters
+
+Slimy allows specifying one or more search areas through JSON.
+This can be done with a file, or by sending JSON directly to stdin, allowing generating parameters using a script.
+To read JSON parameters from a file named `params.json`, use the following command:
+
+```
+slimy-SYSTEM -s params.json -- SEED
+```
+
+To read JSON parameters from stdin, use this command:
+
+```
+slimy-SYSTEM -s - -- SEED
+```
+
+The format of the JSON should be something like this:
+
+```json
+[{
+	"threshold": THRESHOLD,
+	"x0": X0,
+	"z0": Z0,
+	"x1": X1,
+	"Z1": Z1
+}, {
+	"threshold": THRESHOLD_2,
+	"x0": X0_2,
+	"z0": Z0_2,
+	"x1": X1_2,
+	"Z1": Z1_2
+}, ...]
+```
+
 ### Benchmark mode
 
 This mode is primarily meant for testing Slimy's performance during development.
