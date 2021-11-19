@@ -15,7 +15,7 @@ pub const timestamp: ?[]const u8 = if (build_consts.timestamp) |ts|
 else
     null;
 
-fn stringTimestamp(comptime ts: u64) void {
+fn stringTimestamp(comptime ts: u64) []const u8 {
     const esec = epoch.EpochSeconds{ .secs = ts };
     const day_sec = esec.getDaySeconds();
     const year_day = esec.getEpochDay().calculateYearDay();
