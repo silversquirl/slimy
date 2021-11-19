@@ -18,6 +18,7 @@ pub fn build(b: *std.build.Builder) !void {
     shaders.cwd = std.fs.path.join(b.allocator, &.{ b.build_root, "src", "shader" }) catch unreachable;
 
     const deps = Deps.init(b);
+    deps.add("https://github.com/silversquirl/cpuinfo-zig", "main");
     deps.add("https://github.com/silversquirl/optz", "main");
     deps.add("https://github.com/silversquirl/zcompute", "main");
 

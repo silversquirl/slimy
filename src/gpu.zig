@@ -9,14 +9,16 @@ pub fn search(
     comptime resultCallback: fn (@TypeOf(callback_context), slimy.Result) void,
     comptime progressCallback: ?fn (@TypeOf(callback_context), completed: u64, total: u64) void,
 ) !void {
-    var ctx = try Context.init();
+    var ctx = Context{};
+    try ctx.init();
     defer ctx.deinit();
     try ctx.search(params, callback_context, resultCallback, progressCallback);
 }
 
 pub const Context = struct {
-    ctx: zc.Context,
     inited: bool = false,
+
+    ctx: zc.Context = undefined,
     shad: Shader = undefined,
     buffers: [2]ResultBuffers = undefined,
     buf_idx: u1 = 0,
@@ -27,12 +29,9 @@ pub const Context = struct {
         zc.storageBuffer("results", 1, zc.Buffer(slimy.Result)),
     });
 
-    pub fn init() !Context {
-        return Context{
-            .ctx = zc.Context.init(std.heap.c_allocator, .{}) catch return error.VulkanInit,
-        };
-    }
-    fn initInternal(self: *Context) !void {
+    pub fn init(self: *Context) !void {
+        self.ctx = zc.Context.init(std.heap.c_allocator, .{}) catch return error.VulkanInit;
+
         self.shad = Shader.initBytes(&self.ctx, @embedFile("shader/search.spv")) catch return error.ShaderInit;
         errdefer self.shad.deinit();
 
@@ -46,11 +45,9 @@ pub const Context = struct {
     }
 
     pub fn deinit(self: Context) void {
-        if (self.inited) {
-            self.buffers[0].deinit();
-            self.buffers[1].deinit();
-            self.shad.deinit();
-        }
+        self.buffers[0].deinit();
+        self.buffers[1].deinit();
+        self.shad.deinit();
         self.ctx.deinit();
     }
 
@@ -61,7 +58,7 @@ pub const Context = struct {
         comptime resultCallback: fn (@TypeOf(callback_context), slimy.Result) void,
         comptime progressCallback: ?fn (@TypeOf(callback_context), completed: u64, total: u64) void,
     ) !void {
-        if (!self.inited) try self.initInternal();
+        std.debug.assert(self.inited);
 
         const useed = @bitCast(u64, params.world_seed);
         const gpu_params = GpuParams{

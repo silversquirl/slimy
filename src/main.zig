@@ -19,6 +19,10 @@ pub fn main() u8 {
             return 0;
         },
 
+        error.Benchmark => {
+            return @import("bench.zig").main();
+        },
+
         error.TooManyArgs => {
             usage(stderr);
             std.log.err("Too many arguments", .{});
@@ -203,6 +207,7 @@ fn usage(out: std.fs.File) void {
         \\  -q              Disable progress reporting
         \\  -m METHOD       Search method (gpu [default] or cpu)
         \\  -j THREADS      Number of threads to use (for cpu method only)
+        \\  -b              Benchmark mode
         \\
         \\
     ) catch return;
@@ -228,10 +233,13 @@ fn parseArgs() !Options {
 
         m: []const u8 = "gpu",
         j: u8 = 0,
+
+        b: bool = false,
     }, &args);
 
     if (flags.h) return error.Help;
     if (flags.v) return error.Version;
+    if (flags.b) return error.Benchmark;
 
     const format = std.meta.stringToEnum(OutputOptions.Format, flags.f) orelse {
         return error.InvalidFormat;
