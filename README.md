@@ -88,3 +88,14 @@ For example, the following command will perform a CPU search with 4 threads:
 ```
 slimy-SYSTEM -m cpu -j 4 -- SEED RANGE THRESHOLD
 ```
+
+### Benchmark mode
+
+This mode is primarily meant for testing Slimy's performance during development.
+However, it can also be useful for determining which search mode to use, or for a very rough estimate of system performance.
+
+To run Slimy in benchmark mode, use the `-b` option with no other arguments:
+
+```
+slimy-SYSTEM -b
+```
