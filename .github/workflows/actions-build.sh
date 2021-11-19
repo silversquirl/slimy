@@ -1,6 +1,5 @@
 #!/bin/sh
 zig build \
 	-Drelease-safe -Dglslc="$PWD/shaderc/bin/glslc" \
-	-Dsuffix -Dstrip -Dtimestamp -Dtimestamp \
-	-Dtarget="$1"
+	-Dsuffix -Dstrip -Dtimestamp -Dtarget="$1"
 

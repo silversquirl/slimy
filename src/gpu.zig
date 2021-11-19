@@ -2,6 +2,7 @@ const std = @import("std");
 const common = @import("common.zig");
 const slimy = @import("slimy.zig");
 const zc = @import("zcompute");
+const log = std.log.scoped(.gpu);
 
 pub fn search(
     params: slimy.SearchParams,
@@ -30,15 +31,27 @@ pub const Context = struct {
     });
 
     pub fn init(self: *Context) !void {
-        self.ctx = zc.Context.init(std.heap.c_allocator, .{}) catch return error.VulkanInit;
+        self.ctx = zc.Context.init(std.heap.c_allocator, .{}) catch |err| {
+            log.err("Vulkan init error: {s}", .{@errorName(err)});
+            return error.VulkanInit;
+        };
 
-        self.shad = Shader.initBytes(&self.ctx, @embedFile("shader/search.spv")) catch return error.ShaderInit;
+        self.shad = Shader.initBytes(&self.ctx, @embedFile("shader/search.spv")) catch |err| {
+            log.err("Shader init error: {s}", .{@errorName(err)});
+            return error.ShaderInit;
+        };
         errdefer self.shad.deinit();
 
         // Result buffers - two of these so we can double-buffer
-        self.buffers[0] = ResultBuffers.init(&self.ctx) catch return error.BufferInit;
+        self.buffers[0] = ResultBuffers.init(&self.ctx) catch |err| {
+            log.err("Buffer 0 init error: {s}", .{@errorName(err)});
+            return error.BufferInit;
+        };
         errdefer self.buffers[0].deinit();
-        self.buffers[1] = ResultBuffers.init(&self.ctx) catch return error.BufferInit;
+        self.buffers[1] = ResultBuffers.init(&self.ctx) catch |err| {
+            log.err("Buffer 1 init error: {s}", .{@errorName(err)});
+            return error.BufferInit;
+        };
         errdefer self.buffers[1].deinit();
 
         self.inited = true;

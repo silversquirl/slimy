@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/**'
       - '**.zig'
+      - '.github/**'
 
 jobs:
   build:
