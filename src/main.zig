@@ -8,7 +8,9 @@ pub fn main() u8 {
     const stdout = std.io.getStdOut();
     const stderr = std.io.getStdErr();
 
-    const options = parseArgs() catch |err| switch (err) {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const options = parseArgs(&arena.allocator) catch |err| switch (err) {
         error.Help => {
             usage(stdout);
             return 0;
@@ -66,34 +68,33 @@ pub fn main() u8 {
             return 1;
         },
 
+        error.JsonError => return 1, // Handled in parseArgs
+
         error.OutOfMemory => @panic("Out of memory"),
     };
 
     var ctx = OutputContext.init(std.heap.page_allocator, options.output);
     defer ctx.flush();
 
-    slimy.search(
-        options.search,
-        &ctx,
-        OutputContext.result,
-        OutputContext.progress,
-    ) catch |err| switch (err) {
-        error.ThreadQuotaExceeded => @panic("Thread quota exceeded"),
-        error.SystemResources => @panic("System resources error"),
-        error.OutOfMemory => @panic("Out of memory"),
-        error.LockedMemoryLimitExceeded => unreachable,
-        error.Unexpected => @panic("Unexpected error"),
+    for (options.searches) |search| {
+        slimy.search(search, &ctx, OutputContext.result, OutputContext.progress) catch |err| switch (err) {
+            error.ThreadQuotaExceeded => @panic("Thread quota exceeded"),
+            error.SystemResources => @panic("System resources error"),
+            error.OutOfMemory => @panic("Out of memory"),
+            error.LockedMemoryLimitExceeded => unreachable,
+            error.Unexpected => @panic("Unexpected error"),
 
-        error.VulkanInit => {
-            std.log.err("Vulkan initialization failed. Your GPU may not support Vulkan; try using the CPU search instead (-mcpu option)", .{});
-            return 1;
-        },
-        error.ShaderInit => @panic("Compute pipeline init failed"),
-        error.BufferInit => @panic("Buffer allocation failed"),
-        error.ShaderExec => @panic("GPU compute execution failed"),
-        error.Timeout => @panic("Shader execution timed out"),
-        error.MemoryMapFailed => @panic("Mapping buffer memory failed"),
-    };
+            error.VulkanInit => {
+                std.log.err("Vulkan initialization failed. Your GPU may not support Vulkan; try using the CPU search instead (-mcpu option)", .{});
+                return 1;
+            },
+            error.ShaderInit => @panic("Compute pipeline init failed"),
+            error.BufferInit => @panic("Buffer allocation failed"),
+            error.ShaderExec => @panic("GPU compute execution failed"),
+            error.Timeout => @panic("Shader execution timed out"),
+            error.MemoryMapFailed => @panic("Mapping buffer memory failed"),
+        };
+    }
 
     return 0;
 }
@@ -198,7 +199,9 @@ pub const OutputOptions = struct {
 
 fn usage(out: std.fs.File) void {
     out.writeAll(
-        \\Usage: slimy [OPTIONS] SEED RANGE THRESHOLD
+        \\Usage:
+        \\    slimy [OPTIONS] SEED RANGE THRESHOLD
+        \\    slimy [OPTIONS] -s SEED
         \\
         \\  -h              Display this help message
         \\  -v              Display version information
@@ -207,6 +210,7 @@ fn usage(out: std.fs.File) void {
         \\  -q              Disable progress reporting
         \\  -m METHOD       Search method (gpu [default] or cpu)
         \\  -j THREADS      Number of threads to use (for cpu method only)
+        \\  -s FILENAME     Read search parameters from a JSON file (or - for stdin)
         \\  -b              Benchmark mode
         \\
         \\
@@ -214,16 +218,13 @@ fn usage(out: std.fs.File) void {
 }
 
 const Options = struct {
-    search: slimy.SearchParams,
+    searches: []const slimy.SearchParams,
     output: OutputOptions,
 };
 
-fn parseArgs() !Options {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-
+fn parseArgs(allocator: *std.mem.Allocator) !Options {
     var args = std.process.args();
-    var flags = try optz.parse(&arena.allocator, struct {
+    var flags = try optz.parse(allocator, struct {
         h: bool = false,
         v: bool = false,
 
@@ -233,6 +234,8 @@ fn parseArgs() !Options {
 
         m: []const u8 = "gpu",
         j: u8 = 0,
+
+        s: ?[]const u8 = null,
 
         b: bool = false,
     }, &args);
@@ -247,11 +250,11 @@ fn parseArgs() !Options {
 
     const progress = !flags.q and std.io.getStdErr().supportsAnsiEscapeCodes();
 
-    const method = std.meta.stringToEnum(std.meta.Tag(slimy.SearchMethod), flags.m) orelse {
+    const method_id = std.meta.stringToEnum(std.meta.Tag(slimy.SearchMethod), flags.m) orelse {
         return error.InvalidMethod;
     };
 
-    if (method == .cpu) {
+    if (method_id == .cpu) {
         if (builtin.single_threaded) {
             if (flags.j == 0) {
                 flags.j = 1;
@@ -265,17 +268,54 @@ fn parseArgs() !Options {
         }
     }
 
-    const seed = try args.next(&arena.allocator) orelse return error.NotEnoughArgs;
-    const range = try args.next(&arena.allocator) orelse return error.NotEnoughArgs;
-    const threshold = try args.next(&arena.allocator) orelse return error.NotEnoughArgs;
-    if (args.skip()) {
-        return error.TooManyArgs;
-    }
-    const range_n: i32 = try std.fmt.parseInt(u31, range, 10);
+    const seed_s = try args.next(allocator) orelse return error.NotEnoughArgs;
+    const seed = try std.fmt.parseInt(i64, seed_s, 10);
+    const method: slimy.SearchMethod = switch (method_id) {
+        .gpu => .gpu,
+        .cpu => .{ .cpu = flags.j },
+    };
 
-    return Options{
-        .search = .{
-            .world_seed = try std.fmt.parseInt(i64, seed, 10),
+    var searches: []const slimy.SearchParams = undefined;
+    if (flags.s) |path| {
+        // TODO: require all same world seed, or specify world seed on command line or something
+        const json_params = readJsonParams(allocator, path) catch |err| {
+            std.log.err("Error reading JSON file '{s}': {s}", .{ path, @errorName(err) });
+            return error.JsonError;
+        };
+
+        var s = try allocator.alloc(slimy.SearchParams, json_params.len);
+        for (json_params) |param, i| {
+            var p = param;
+            if (p.x0 > p.x1) {
+                std.mem.swap(i32, &p.x0, &p.x1);
+            }
+            if (p.z0 > p.z1) {
+                std.mem.swap(i32, &p.z0, &p.z1);
+            }
+
+            s[i] = .{
+                .world_seed = seed,
+                .threshold = p.threshold,
+
+                .x0 = p.x0,
+                .z0 = p.z0,
+                .x1 = p.x1,
+                .z1 = p.z1,
+
+                .method = method,
+            };
+        }
+        searches = s;
+    } else {
+        const range = try args.next(allocator) orelse return error.NotEnoughArgs;
+        const threshold = try args.next(allocator) orelse return error.NotEnoughArgs;
+        if (args.skip()) {
+            return error.TooManyArgs;
+        }
+        const range_n: i32 = try std.fmt.parseInt(u31, range, 10);
+
+        searches = try allocator.dupe(slimy.SearchParams, &.{.{
+            .world_seed = seed,
             .threshold = try std.fmt.parseInt(i32, threshold, 10),
 
             .x0 = -range_n,
@@ -283,11 +323,12 @@ fn parseArgs() !Options {
             .x1 = range_n,
             .z1 = range_n,
 
-            .method = switch (method) {
-                .gpu => .gpu,
-                .cpu => .{ .cpu = flags.j },
-            },
-        },
+            .method = method,
+        }});
+    }
+
+    return Options{
+        .searches = searches,
         .output = .{
             .format = format,
             .sort = !flags.u,
@@ -295,3 +336,21 @@ fn parseArgs() !Options {
         },
     };
 }
+
+fn readJsonParams(allocator: *std.mem.Allocator, path: []const u8) ![]const JsonParams {
+    const data = if (std.mem.eql(u8, path, "-"))
+        try std.io.getStdIn().readToEndAlloc(allocator, 1 << 20)
+    else
+        try std.fs.cwd().readFileAlloc(allocator, path, 1 << 20);
+
+    var stream = std.json.TokenStream.init(data);
+    return try std.json.parse([]const JsonParams, &stream, .{ .allocator = allocator });
+}
+const JsonParams = struct {
+    threshold: i32,
+
+    x0: i32,
+    z0: i32,
+    x1: i32,
+    z1: i32,
+};
