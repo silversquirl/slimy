@@ -40,8 +40,8 @@ pub const Result = struct {
             return a.count > b.count;
         }
 
-        const a_d2 = (a.x * a.x) + (a.z * a.z);
-        const b_d2 = (b.x * b.x) + (b.z * b.z);
+        const a_d2 = (@as(i64, a.x) * a.x) + (@as(i64, a.z) * a.z);
+        const b_d2 = (@as(i64, b.x) * b.x) + (@as(i64, b.z) * b.z);
         if (a_d2 != b_d2) {
             return a_d2 < b_d2;
         }
