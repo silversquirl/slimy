@@ -2,25 +2,40 @@
 <meta charset="utf-8">
 <title>Slimy</title>
 
-<form id="params">
-	<label for="seed">Seed:</label>
-	<input type="text" name="seed">
+<noscript>
+	<h2>This page requires JavaScript</h2>
+	<p>
+		Please enable JavaScript, or use a browser that supports it.
+		<br/>
+		Alternatively, you can <a href="https://github.com/silversquirl/slimy">download and run slimy natively</a>.
+	</p>
 
-	<label for="threshold">Threshold:</label>
-	<input type="number" name="threshold" min="0" value="40">
+	<style>
+		main { display: none; }
+	</style>
+</noscript>
 
-	<label for="range">Range:</label>
-	<input type="number" name="range" min="0" step="100" value="1000">
+<main>
+	<form id="params">
+		<label for="seed">Seed:</label>
+		<input type="text" name="seed">
 
-	<input type="submit" value="Search">
-</form>
+		<label for="threshold">Threshold:</label>
+		<input type="number" name="threshold" min="0" value="40">
 
-<h3 id="status"></h3>
-<button id="csv" style="display: none;">Generate CSV</button>
-<ul id="results"></ul>
+		<label for="range">Range:</label>
+		<input type="number" name="range" min="0" step="100" value="1000">
 
-<small>
-	For large scale searches, <a href="https://github.com/silversquirl/slimy">download and run slimy natively</a>.
-</small>
+		<input type="submit" value="Search">
+	</form>
+
+	<h3 id="status"></h3>
+	<button id="csv" style="display: none;">Generate CSV</button>
+	<ul id="results"></ul>
+
+	<small>
+		For large scale searches, <a href="https://github.com/silversquirl/slimy">download and run slimy natively</a>.
+	</small>
+</main>
 
 <script src="main.js"></script>
