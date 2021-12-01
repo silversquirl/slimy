@@ -27,7 +27,7 @@ jobs:
       - name: Update dependencies
         run: zig build update
       - name: Build web interface
-        run: zig build -Drelease-safe web
+        run: zig build -Drelease-fast web
 
       - name: Deploy to GitHub pages
         uses: peaceiris/actions-gh-pages@v3
