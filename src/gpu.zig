@@ -31,12 +31,15 @@ pub const Context = struct {
     });
 
     pub fn init(self: *Context) !void {
-        self.ctx = zc.Context.init(std.heap.c_allocator, .{}) catch |err| {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+
+        self.ctx = zc.Context.init(arena.allocator(), .{}) catch |err| {
             log.err("Vulkan init error: {s}", .{@errorName(err)});
             return error.VulkanInit;
         };
 
-        self.shad = Shader.initBytes(&self.ctx, @embedFile("shader/search.spv")) catch |err| {
+        self.shad = Shader.initBytes(arena.allocator(), &self.ctx, @embedFile("shader/search.spv")) catch |err| {
             log.err("Shader init error: {s}", .{@errorName(err)});
             return error.ShaderInit;
         };

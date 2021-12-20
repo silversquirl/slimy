@@ -10,7 +10,7 @@ pub fn main() u8 {
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
-    const options = parseArgs(&arena.allocator) catch |err| switch (err) {
+    const options = parseArgs(arena.allocator()) catch |err| switch (err) {
         error.Help => {
             usage(stdout);
             return 0;
@@ -116,7 +116,7 @@ const OutputContext = struct {
         '◟',
     };
 
-    pub fn init(allocator: *std.mem.Allocator, options: OutputOptions) OutputContext {
+    pub fn init(allocator: std.mem.Allocator, options: OutputOptions) OutputContext {
         return OutputContext{
             .f = std.io.getStdOut(),
             .options = options,
@@ -222,7 +222,7 @@ const Options = struct {
     output: OutputOptions,
 };
 
-fn parseArgs(allocator: *std.mem.Allocator) !Options {
+fn parseArgs(allocator: std.mem.Allocator) !Options {
     var args = std.process.args();
     var flags = try optz.parse(allocator, struct {
         h: bool = false,
@@ -337,7 +337,7 @@ fn parseArgs(allocator: *std.mem.Allocator) !Options {
     };
 }
 
-fn readJsonParams(allocator: *std.mem.Allocator, path: []const u8) ![]const JsonParams {
+fn readJsonParams(allocator: std.mem.Allocator, path: []const u8) ![]const JsonParams {
     const data = if (std.mem.eql(u8, path, "-"))
         try std.io.getStdIn().readToEndAlloc(allocator, 1 << 20)
     else

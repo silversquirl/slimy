@@ -35,14 +35,14 @@ export fn searchDeinit(searcher: *AsyncSearcher) void {
 }
 
 const AsyncSearcher = struct {
-    allocator: *std.mem.Allocator,
+    allocator: std.mem.Allocator,
     progress: f64 = 0,
 
     done: bool = false,
     frame: anyframe = undefined,
     frame_storage: @Frame(search) = undefined,
 
-    pub fn init(allocator: *std.mem.Allocator, params: slimy.SearchParams) !*AsyncSearcher {
+    pub fn init(allocator: std.mem.Allocator, params: slimy.SearchParams) !*AsyncSearcher {
         const self = try allocator.create(AsyncSearcher);
         self.* = .{ .allocator = allocator };
         self.frame_storage = async self.search(params);

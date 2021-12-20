@@ -154,7 +154,7 @@ fn printHeader(gpu: slimy.gpu.Context) !void {
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
-    const cpu_info = try cpuinfo.get(&arena.allocator);
+    const cpu_info = try cpuinfo.get(arena.allocator());
     try out.print("CPU: {}\n", .{cpu_info});
 
     const gpu_name = std.mem.sliceTo(&gpu.ctx.device_properties.device_name, 0);
