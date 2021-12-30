@@ -268,7 +268,7 @@ fn parseArgs(allocator: std.mem.Allocator) !Options {
         }
     }
 
-    const seed_s = try args.next(allocator) orelse return error.NotEnoughArgs;
+    const seed_s = (try args.next(allocator)) orelse return error.NotEnoughArgs;
     const seed = try std.fmt.parseInt(i64, seed_s, 10);
     const method: slimy.SearchMethod = switch (method_id) {
         .gpu => .gpu,
@@ -307,8 +307,8 @@ fn parseArgs(allocator: std.mem.Allocator) !Options {
         }
         searches = s;
     } else {
-        const range = try args.next(allocator) orelse return error.NotEnoughArgs;
-        const threshold = try args.next(allocator) orelse return error.NotEnoughArgs;
+        const range = (try args.next(allocator)) orelse return error.NotEnoughArgs;
+        const threshold = (try args.next(allocator)) orelse return error.NotEnoughArgs;
         if (args.skip()) {
             return error.TooManyArgs;
         }
