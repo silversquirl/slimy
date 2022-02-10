@@ -17,7 +17,7 @@ pub fn main() u8 {
         },
 
         error.Version => {
-            stdout.writeAll(version.full_desc ++ "\n") catch {};
+            stdout.writeAll(version.full_desc ++ "\n") catch return 1;
             return 0;
         },
 
@@ -63,14 +63,18 @@ pub fn main() u8 {
             return 1;
         },
 
-        error.InvalidCmdLine => {
-            std.log.err("Encoding error in command line arguments", .{});
-            return 1;
-        },
-
         error.JsonError => return 1, // Handled in parseArgs
 
         error.OutOfMemory => @panic("Out of memory"),
+
+        else => |e| if (builtin.os.tag == .windows) {
+            switch (e) {
+                error.InvalidCmdLine => {
+                    std.log.err("Encoding error in command line arguments", .{});
+                    return 1;
+                },
+            }
+        } else switch (e) {},
     };
 
     var ctx = OutputContext.init(std.heap.page_allocator, options.output);
@@ -197,6 +201,24 @@ pub const OutputOptions = struct {
     };
 };
 
+test "output context" {
+    var ctx = OutputContext.init(std.testing.allocator, .{
+        .format = .csv,
+        .sort = true,
+        .progress = false,
+    });
+
+    var pipe = try std.os.pipe();
+    var readf = std.fs.File{ .handle = pipe[0] };
+    defer readf.close();
+    var writef = std.fs.File{ .handle = pipe[1] };
+    defer writef.close();
+
+    ctx.f = writef;
+    ctx.progress(1, 10);
+    ctx.flush();
+}
+
 fn usage(out: std.fs.File) void {
     out.writeAll(
         \\Usage:
@@ -223,7 +245,8 @@ const Options = struct {
 };
 
 fn parseArgs(allocator: std.mem.Allocator) !Options {
-    var args = std.process.args();
+    var args = try std.process.argsWithAllocator(allocator);
+    _ = args;
     var flags = try optz.parse(allocator, struct {
         h: bool = false,
         v: bool = false,
@@ -268,7 +291,7 @@ fn parseArgs(allocator: std.mem.Allocator) !Options {
         }
     }
 
-    const seed_s = (try args.next(allocator)) orelse return error.NotEnoughArgs;
+    const seed_s = args.next() orelse return error.NotEnoughArgs;
     const seed = try std.fmt.parseInt(i64, seed_s, 10);
     const method: slimy.SearchMethod = switch (method_id) {
         .gpu => .gpu,
@@ -307,14 +330,16 @@ fn parseArgs(allocator: std.mem.Allocator) !Options {
         }
         searches = s;
     } else {
-        const range = (try args.next(allocator)) orelse return error.NotEnoughArgs;
-        const threshold = (try args.next(allocator)) orelse return error.NotEnoughArgs;
+        const range = args.next() orelse return error.NotEnoughArgs;
+        const threshold = args.next() orelse return error.NotEnoughArgs;
         if (args.skip()) {
             return error.TooManyArgs;
         }
         const range_n: i32 = try std.fmt.parseInt(u31, range, 10);
 
-        searches = try allocator.dupe(slimy.SearchParams, &.{.{
+        var s = try allocator.alloc(slimy.SearchParams, 1);
+        s[0] =
+            .{
             .world_seed = seed,
             .threshold = try std.fmt.parseInt(i32, threshold, 10),
 
@@ -324,7 +349,8 @@ fn parseArgs(allocator: std.mem.Allocator) !Options {
             .z1 = range_n,
 
             .method = method,
-        }});
+        };
+        searches = s;
     }
 
     return Options{

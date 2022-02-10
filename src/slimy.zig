@@ -55,3 +55,9 @@ pub const Result = struct {
         return false;
     }
 };
+
+test {
+    @import("std").testing.refAllDecls(@This());
+    @import("std").testing.refAllDecls(cpu);
+    @import("std").testing.refAllDecls(gpu);
+}
