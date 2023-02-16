@@ -24,8 +24,6 @@ jobs:
       - uses: goto-bus-stop/setup-zig@v1
         with: {version: master}
 
-      - name: Update dependencies
-        run: zig build update
       - name: Build web interface
         run: zig build -Doptimize=ReleaseFast web
 

@@ -28,9 +28,6 @@ jobs:
       - name: Install ShaderC
         run: ./.github/workflows/install-shaderc.sh
 
-      - name: Update dependencies
-        run: zig build update
-
       - name: Build for x86_64 Linux glibc
         run: ./.github/workflows/actions-build.sh x86_64-linux-gnu
       - name: Build for x86_64 Linux musl
