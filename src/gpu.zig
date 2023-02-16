@@ -94,11 +94,11 @@ pub const Context = struct {
         };
         var z: u32 = 0;
         while (z < search_size[1]) : (z += batch_size[1]) {
-            const batch_z = @minimum(search_size[1] - z, batch_size[1]);
+            const batch_z = @min(search_size[1] - z, batch_size[1]);
 
             var x: u32 = 0;
             while (x < search_size[0]) : (x += batch_size[0]) {
-                const batch_x = @minimum(search_size[0] - x, batch_size[0]);
+                const batch_x = @min(search_size[0] - x, batch_size[0]);
 
                 if (progressCallback) |cb| {
                     const chunk_index = x + z * @as(u64, search_size[0]);

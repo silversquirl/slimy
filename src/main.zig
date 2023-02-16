@@ -66,15 +66,10 @@ pub fn main() u8 {
         error.JsonError => return 1, // Handled in parseArgs
 
         error.OutOfMemory => @panic("Out of memory"),
-
-        else => |e| if (builtin.os.tag == .windows) {
-            switch (e) {
-                error.InvalidCmdLine => {
-                    std.log.err("Encoding error in command line arguments", .{});
-                    return 1;
-                },
-            }
-        } else switch (e) {},
+        error.InvalidCmdLine => {
+            std.log.err("Encoding error in command line arguments", .{});
+            return 1;
+        },
     };
 
     var ctx = OutputContext.init(std.heap.page_allocator, options.output);
@@ -171,7 +166,7 @@ const OutputContext = struct {
         self.lock.lock();
         defer self.lock.unlock();
 
-        if (self.progress_timer) |timer| {
+        if (self.progress_timer) |*timer| {
             const tick = timer.read() / progress_tick;
             self.progressLineClear();
             std.debug.print("[{u}] {d:.2}%", .{
@@ -244,9 +239,25 @@ const Options = struct {
     output: OutputOptions,
 };
 
-fn parseArgs(allocator: std.mem.Allocator) !Options {
+const ArgsError = error{
+    Help,
+    Version,
+    Benchmark,
+    TooManyArgs,
+    NotEnoughArgs,
+    InvalidFlag,
+    MissingParameter,
+    InvalidFormat,
+    InvalidMethod,
+    InvalidCharacter,
+    Overflow,
+    JsonError,
+    OutOfMemory,
+    InvalidCmdLine,
+};
+
+fn parseArgs(allocator: std.mem.Allocator) ArgsError!Options {
     var args = try std.process.argsWithAllocator(allocator);
-    _ = args;
     var flags = try optz.parse(allocator, struct {
         h: bool = false,
         v: bool = false,

@@ -1,0 +1,18 @@
+.{
+    .name = "slimy",
+    .version = "0.1.0-dev",
+    .dependencies = .{
+        .optz = .{
+            .url = "https://github.com/silversquirl/optz/archive/de0cd60f2f1983f262d663e6830ac7f1148b1253.tar.gz",
+            .hash = "1220f497bf34b374ec00fe5fc1ec2b291a813bb5ad54c3a4ff5ea917bcfb3448660c",
+        },
+        .cpuinfo = .{
+            .url = "https://github.com/silversquirl/cpuinfo-zig/archive/219b65fa8139d3f21fa016fcdc8b7e1a9d2bdaff.tar.gz",
+            .hash = "12205fda4188d01a2457b06c4db0354ec7c9a4e402ad406a2ae4ba5be017f5c6772c",
+        },
+        .zcompute = .{
+            .url = "https://github.com/silversquirl/zcompute/archive/c04ee21e59aa511db51bca103870667e3de5d4ab.tar.gz",
+            .hash = "122002921e835273bcd7473dc5db4d436eb350ccdafb61051078bfca67e7c0ebe617",
+        },
+    },
+}

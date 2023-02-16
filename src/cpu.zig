@@ -61,8 +61,8 @@ fn checkLocation(world_seed: i64, cx: i32, cz: i32) u32 {
     var count: u32 = 0;
     for (common.mask) |row, mz| {
         for (row) |bit, mx| {
-            const x = @intCast(i32, mx) + cx - row.len / 2;
-            const z = @intCast(i32, mz) + cz - common.mask.len / 2;
+            const x = @intCast(i32, mx) + cx - @intCast(i32, row.len / 2);
+            const z = @intCast(i32, mz) + cz - @intCast(i32, common.mask.len / 2);
             count += @boolToInt(bit and isSlime(world_seed, x, z));
         }
     }
