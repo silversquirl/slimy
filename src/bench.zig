@@ -48,7 +48,7 @@ fn mainInternal() !void {
     // 3x ~5s GPU benchmark
     try out.writeAll("Testing GPU");
     var gpu_rate: u128 = approx_gpu_rate;
-    for ([_]void{{}} ** 3) |_, i| {
+    for ([_]void{{}} ** 3, 0..) |_, i| {
         try out.writeByte('.');
         gpu_rate += try benchGpu(&gpu, gpu_rate / (i + 1), 5);
     }
@@ -58,7 +58,7 @@ fn mainInternal() !void {
     // 3x ~5s CPU benchmark
     try out.writeAll("Testing CPU");
     var cpu_rate: u128 = approx_cpu_rate;
-    for ([_]void{{}} ** 3) |_, i| {
+    for ([_]void{{}} ** 3, 0..) |_, i| {
         try out.writeByte('.');
         cpu_rate += try benchCpu(thread_count, cpu_rate / (i + 1), 5);
     }
@@ -87,7 +87,7 @@ fn formatIntGrouped(
     var val = value;
     var i: u8 = 0;
     while (val > 1000) {
-        groups[i] = @intCast(u10, val % 1000);
+        groups[i] = @intCast(val % 1000);
         val /= 1000;
         i += 1;
     }
@@ -186,11 +186,11 @@ const Collector = struct {
         if (expected.len != self.n) {
             return error.IncorrectResults;
         }
-        std.sort.sort(slimy.Result, self.buf[0..self.n], {}, slimy.Result.sortLessThan);
+        std.sort.block(slimy.Result, self.buf[0..self.n], {}, slimy.Result.sortLessThan);
         std.debug.assert(
             std.sort.isSorted(slimy.Result, expected, {}, slimy.Result.sortLessThan),
         );
-        for (expected) |r, i| {
+        for (expected, 0..) |r, i| {
             if (!std.meta.eql(r, self.buf[i])) {
                 return error.IncorrectResults;
             }
@@ -200,8 +200,8 @@ const Collector = struct {
 
 fn targetParams(rate: u128, target_secs: u8, method: slimy.SearchMethod) slimy.SearchParams {
     const num_locations = rate * target_secs;
-    const width = @intCast(u31, std.math.sqrt(num_locations));
-    const height = @intCast(u31, num_locations / width);
+    const width: u31 = @intCast(std.math.sqrt(num_locations));
+    const height: u31 = @intCast(num_locations / width);
     return .{
         .world_seed = test_seed,
         .threshold = 100,
@@ -230,10 +230,9 @@ fn benchCpu(threads: u8, rate: u128, target_secs: u8) !u128 {
 }
 
 fn locationRate(time: u128, params: slimy.SearchParams) u128 {
-    const locations_checked =
-        @intCast(u128, params.x1 - params.x0) *
-        @intCast(u128, params.z1 - params.z0);
-    return locations_checked * std.time.ns_per_s / time;
+    const width: u128 = @intCast(params.x1 - params.x0);
+    const height: u128 = @intCast(params.z1 - params.z0);
+    return width * height * std.time.ns_per_s / time;
 }
 
 fn devNull(_: void, res: slimy.Result) void {

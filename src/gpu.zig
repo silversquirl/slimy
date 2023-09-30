@@ -78,19 +78,19 @@ pub const Context = struct {
         std.debug.assert(self.inited);
 
         log.debug("start search", .{});
-        const useed = @bitCast(u64, params.world_seed);
+        const useed: u64 = @bitCast(params.world_seed);
         const gpu_params = GpuParams{
             .world_seed = .{
-                @intCast(u32, useed >> 32),
-                @truncate(u32, useed),
+                @intCast(useed >> 32),
+                @truncate(useed),
             },
             .offset = .{ params.x0, params.z0 },
             .threshold = params.threshold,
         };
 
         const search_size = [2]u32{
-            @intCast(u32, @as(i33, params.x1) - params.x0),
-            @intCast(u32, @as(i33, params.z1) - params.z0),
+            @intCast(@as(i33, params.x1) - params.x0),
+            @intCast(@as(i33, params.z1) - params.z0),
         };
         var z: u32 = 0;
         while (z < search_size[1]) : (z += batch_size[1]) {

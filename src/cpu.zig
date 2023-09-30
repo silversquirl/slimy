@@ -21,7 +21,7 @@ fn isSlime(world_seed: i64, x: i32, z: i32) bool {
 
     // Calculate random result
     seed = (seed *% magic +% 0xB) & mask;
-    const bits = @intCast(i32, seed >> 48 - 31);
+    const bits: i32 = @intCast(seed >> 48 - 31);
     const val = @mod(bits, 10);
 
     std.debug.assert(bits >= val - 9);
@@ -42,11 +42,11 @@ test "isSlime" {
         .{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
     };
 
-    for (expected) |row, y| {
-        for (row) |e, x| {
+    for (expected, 0..) |row, y| {
+        for (row, 0..) |e, x| {
             try std.testing.expectEqual(
                 e != 0,
-                isSlime(1, @intCast(i32, x), @intCast(i32, y)),
+                isSlime(1, @intCast(x), @intCast(y)),
             );
         }
     }
@@ -59,11 +59,11 @@ fn checkLocation(world_seed: i64, cx: i32, cz: i32) u32 {
     @setRuntimeSafety(false);
 
     var count: u32 = 0;
-    for (common.mask) |row, mz| {
-        for (row) |bit, mx| {
-            const x = @intCast(i32, mx) + cx - @intCast(i32, row.len / 2);
-            const z = @intCast(i32, mz) + cz - @intCast(i32, common.mask.len / 2);
-            count += @boolToInt(bit and isSlime(world_seed, x, z));
+    for (common.mask, 0..) |row, mz| {
+        for (row, 0..) |bit, mx| {
+            const x = @as(i32, @intCast(mx)) + cx - @as(i32, @intCast(row.len / 2));
+            const z = @as(i32, @intCast(mz)) + cz - @as(i32, @intCast(common.mask.len / 2));
+            count += @intFromBool(bit and isSlime(world_seed, x, z));
         }
     }
     return count;
@@ -136,19 +136,21 @@ pub fn Searcher(comptime Context: type) type {
         }
 
         pub fn searchSinglethread(self: Self) void {
-            const total_chunks = @intCast(u64, self.x1 - self.x0) * @intCast(u64, self.z1 - self.z0);
+            const width: u64 = @intCast(self.x1 - self.x0);
+            const height: u64 = @intCast(self.z1 - self.z0);
+            const total_chunks = width * height;
             var completed_chunks: u64 = 0;
             const step = 100;
 
             var z0 = self.z0;
             while (z0 < self.z1) : (z0 += step) {
-                const z1 = std.math.min(z0 + step, self.z1);
+                const z1 = @min(z0 + step, self.z1);
 
                 var x0 = self.x0;
                 while (x0 < self.x1) : (x0 += step) {
-                    const x1 = std.math.min(x0 + step, self.x1);
+                    const x1 = @min(x0 + step, self.x1);
                     self.searchArea(x0, x1, z0, z1);
-                    completed_chunks += @intCast(u64, x1 - x0) * @intCast(u64, z1 - z0);
+                    completed_chunks += @as(u64, @intCast(x1 - x0)) * @as(u64, @intCast(z1 - z0));
 
                     self.ctx.reportProgress(completed_chunks, total_chunks);
                 }
@@ -168,7 +170,7 @@ pub fn Searcher(comptime Context: type) type {
         fn searchWorker(self: Self, thread_idx: u8, prev_thread: ?std.Thread) void {
             // TODO: work stealing
 
-            const thread_width = @intCast(u31, self.z1 - self.z0) / self.threads;
+            const thread_width = @as(u31, @intCast(self.z1 - self.z0)) / self.threads;
             const z0 = self.z0 + thread_idx * thread_width;
             const z1 = if (thread_idx == self.threads - 1)
                 self.z1 // Last thread, consume all remaining area

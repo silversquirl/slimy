@@ -5,10 +5,10 @@ pub const mask = blk: {
 
     const dim = 2 * outer + 1;
     var bitmap: [dim][dim]bool = undefined;
-    for (bitmap) |*row, y| {
-        for (row) |*bit, x| {
-            const rx = @intCast(i32, x) - outer;
-            const ry = @intCast(i32, y) - outer;
+    for (&bitmap, 0..) |*row, y| {
+        for (row, 0..) |*bit, x| {
+            const rx = @as(i32, @intCast(x)) - outer;
+            const ry = @as(i32, @intCast(y)) - outer;
             const d2 = rx * rx + ry * ry;
             bit.* =
                 // Outside inner circle

@@ -68,9 +68,9 @@ pub fn build(b: *std.build.Builder) !void {
 
     exe.single_threaded = singlethread;
     exe.strip = strip;
-    exe.install();
+    b.installArtifact(exe);
 
-    const run_cmd = exe.run();
+    const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         run_cmd.addArgs(args);
@@ -87,15 +87,16 @@ pub fn build(b: *std.build.Builder) !void {
         }),
         .optimize = optimize,
     });
-    wasm.override_dest_dir = .{ .custom = "web" };
     wasm.single_threaded = true;
 
     const web = b.addInstallDirectory(.{
-        .source_dir = "web",
+        .source_dir = .{ .path = "web" },
         .install_dir = .prefix,
         .install_subdir = "web",
     });
-    web.step.dependOn(&b.addInstallArtifact(wasm).step);
+    web.step.dependOn(&b.addInstallArtifact(wasm, .{
+        .dest_dir = .{ .override = .{ .custom = "web" } },
+    }).step);
 
     const web_step = b.step("web", "Build web UI");
     web_step.dependOn(&web.step);

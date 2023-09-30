@@ -3,16 +3,16 @@
     .version = "0.1.0-dev",
     .dependencies = .{
         .optz = .{
-            .url = "https://github.com/silversquirl/optz/archive/de0cd60f2f1983f262d663e6830ac7f1148b1253.tar.gz",
-            .hash = "1220f497bf34b374ec00fe5fc1ec2b291a813bb5ad54c3a4ff5ea917bcfb3448660c",
+            .url = "https://github.com/silversquirl/optz/archive/a57f38365d85a8c1151171a7e3a715ed285e2a9d.tar.gz",
+            .hash = "12200ddfa43ada90f0a56d8cd1664c91321001a30c1bbb5a6ac6d405161c4750d6d2",
         },
         .cpuinfo = .{
-            .url = "https://github.com/silversquirl/cpuinfo-zig/archive/219b65fa8139d3f21fa016fcdc8b7e1a9d2bdaff.tar.gz",
-            .hash = "12205fda4188d01a2457b06c4db0354ec7c9a4e402ad406a2ae4ba5be017f5c6772c",
+            .url = "https://github.com/silversquirl/cpuinfo-zig/archive/bf816de759cf02c95ee9d94e7e7ab3e373a7286f.tar.gz",
+            .hash = "1220e168bbe411e4a92ffb194a7cf353997e69af530ca9ed4b4411c178948b340995",
         },
         .zcompute = .{
-            .url = "https://github.com/silversquirl/zcompute/archive/c04ee21e59aa511db51bca103870667e3de5d4ab.tar.gz",
-            .hash = "122002921e835273bcd7473dc5db4d436eb350ccdafb61051078bfca67e7c0ebe617",
+            .url = "https://github.com/silversquirl/zcompute/archive/60312ae55c6447a387462ab0212b7c163dfd50d3.tar.gz",
+            .hash = "12206a1edb5a051dbdbdd106bdc19ac3f1f1237de076e80fb7325d5a98a98f8df54b",
         },
     },
 }

@@ -1,10 +1,14 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const build_consts = @import("build_consts");
 const epoch = std.time.epoch;
 
 pub const version = build_consts.version;
 
-pub const desc = std.fmt.comptimePrint("slimy v{}", .{version});
+pub const desc = std.fmt.comptimePrint("slimy ({s}) v{}", .{
+    @tagName(builtin.mode),
+    version,
+});
 pub const full_desc = if (timestamp) |ts|
     desc ++ ", built at " ++ ts
 else

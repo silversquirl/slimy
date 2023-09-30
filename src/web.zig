@@ -79,7 +79,7 @@ const AsyncSearcher = struct {
     pub fn reportProgress(self: *AsyncSearcher, completed: u64, total: u64) void {
         const resolution = 10_000;
         const progress = resolution * completed / total;
-        const fraction = @intToFloat(f64, progress) / resolution;
+        const fraction = @as(f64, @floatFromInt(progress)) / resolution;
         self.progress = fraction;
         self.yield();
     }

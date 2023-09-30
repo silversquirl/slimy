@@ -138,7 +138,7 @@ const OutputContext = struct {
                 self.output(res);
                 return;
             };
-            std.sort.insertionSort(slimy.Result, self.buf.items, {}, slimy.Result.sortLessThan);
+            std.sort.insertion(slimy.Result, self.buf.items, {}, slimy.Result.sortLessThan);
         } else {
             self.output(res);
         }
@@ -171,7 +171,7 @@ const OutputContext = struct {
             self.progressLineClear();
             std.debug.print("[{u}] {d:.2}%", .{
                 progress_spinner[tick % progress_spinner.len],
-                @intToFloat(f64, 100_00 * completed / total) * 0.01,
+                @as(f64, @floatFromInt(100_00 * completed / total)) * 0.01,
             });
         }
     }
@@ -256,9 +256,9 @@ const ArgsError = error{
     InvalidCmdLine,
 };
 
-fn parseArgs(allocator: std.mem.Allocator) ArgsError!Options {
-    var args = try std.process.argsWithAllocator(allocator);
-    var flags = try optz.parse(allocator, struct {
+fn parseArgs(arena: std.mem.Allocator) ArgsError!Options {
+    var args = try std.process.argsWithAllocator(arena);
+    var flags = try optz.parse(arena, struct {
         h: bool = false,
         v: bool = false,
 
@@ -312,13 +312,13 @@ fn parseArgs(allocator: std.mem.Allocator) ArgsError!Options {
     var searches: []const slimy.SearchParams = undefined;
     if (flags.s) |path| {
         // TODO: require all same world seed, or specify world seed on command line or something
-        const json_params = readJsonParams(allocator, path) catch |err| {
+        const json_params = readJsonParams(arena, path) catch |err| {
             std.log.err("Error reading JSON file '{s}': {s}", .{ path, @errorName(err) });
             return error.JsonError;
         };
 
-        var s = try allocator.alloc(slimy.SearchParams, json_params.len);
-        for (json_params) |param, i| {
+        var s = try arena.alloc(slimy.SearchParams, json_params.len);
+        for (json_params, 0..) |param, i| {
             var p = param;
             if (p.x0 > p.x1) {
                 std.mem.swap(i32, &p.x0, &p.x1);
@@ -348,7 +348,7 @@ fn parseArgs(allocator: std.mem.Allocator) ArgsError!Options {
         }
         const range_n: i32 = try std.fmt.parseInt(u31, range, 10);
 
-        var s = try allocator.alloc(slimy.SearchParams, 1);
+        var s = try arena.alloc(slimy.SearchParams, 1);
         s[0] =
             .{
             .world_seed = seed,
@@ -374,14 +374,13 @@ fn parseArgs(allocator: std.mem.Allocator) ArgsError!Options {
     };
 }
 
-fn readJsonParams(allocator: std.mem.Allocator, path: []const u8) ![]const JsonParams {
+fn readJsonParams(arena: std.mem.Allocator, path: []const u8) ![]const JsonParams {
     const data = if (std.mem.eql(u8, path, "-"))
-        try std.io.getStdIn().readToEndAlloc(allocator, 1 << 20)
+        try std.io.getStdIn().readToEndAlloc(arena, 1 << 20)
     else
-        try std.fs.cwd().readFileAlloc(allocator, path, 1 << 20);
+        try std.fs.cwd().readFileAlloc(arena, path, 1 << 20);
 
-    var stream = std.json.TokenStream.init(data);
-    return try std.json.parse([]const JsonParams, &stream, .{ .allocator = allocator });
+    return std.json.parseFromSliceLeaky([]const JsonParams, arena, data, .{});
 }
 const JsonParams = struct {
     threshold: i32,
