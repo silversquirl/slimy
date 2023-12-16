@@ -41,7 +41,7 @@ In these cases, you can use the CPU search mode like this:
 slimy-SYSTEM -mcpu -- SEED RANGE THRESHOLD
 ```
 
-[slimy-web]: https://vktec.org.uk/slimy
+[slimy-web]: https://silversquirl.github.io/slimy
 [builds]: https://nightly.link/silversquirl/slimy/workflows/build/main/binaries.zip
 
 ## System requirements
