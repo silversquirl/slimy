@@ -1,39 +1,28 @@
 name: Build native binaries
 
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - '**.zig'
-      - '.github/**'
+on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/cache@v2
-        with:
-          key: ${{ runner.os }}-build
-          path: |
-            zig-cache
-            ~/.cache/deps-zig
+      - name: Checkout
+        uses: actions/checkout@v3
+      - uses: mlugg/setup-zig@v1
+        with: { version: "0.13.0" }
 
-      - uses: actions/checkout@v2
-      - uses: goto-bus-stop/setup-zig@v1
-        with: {version: "0.11.0"}
-
-      # TODO: figure out a way to cache this
       - name: Install ShaderC
-        run: ./.github/workflows/install-shaderc.sh
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y glslc
 
       - name: Build for x86_64 Linux glibc
-        run: ./.github/workflows/actions-build.sh x86_64-linux-gnu
+        run: zig build -Doptimize=ReleaseSafe -Dsuffix -Dstrip -Dtimestamp -Dtarget=x86_64-linux-gnu
       - name: Build for x86_64 Linux musl
-        run: ./.github/workflows/actions-build.sh x86_64-linux-musl
+        run: zig build -Doptimize=ReleaseSafe -Dsuffix -Dstrip -Dtimestamp -Dtarget=x86_64-linux-musl
       - name: Build for x86_64 Windows
-        run: ./.github/workflows/actions-build.sh x86_64-windows
+        run: zig build -Doptimize=ReleaseSafe -Dsuffix -Dstrip -Dtimestamp -Dtarget=x86_64-windows
 
       - uses: actions/upload-artifact@v2
         with:
