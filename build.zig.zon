@@ -1,18 +1,26 @@
 .{
     .name = "slimy",
     .version = "0.1.0-dev",
+    .paths = .{
+        "LICENSE",
+        "README.md",
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "web",
+    },
     .dependencies = .{
         .optz = .{
-            .url = "https://github.com/silversquirl/optz/archive/a57f38365d85a8c1151171a7e3a715ed285e2a9d.tar.gz",
-            .hash = "12200ddfa43ada90f0a56d8cd1664c91321001a30c1bbb5a6ac6d405161c4750d6d2",
+            .url = "https://github.com/silversquirl/optz/archive/63c1c02ecbbfe18fa898b5b86dbee0e5e30df099.tar.gz",
+            .hash = "12200ca26c64345c3fd64caf744205c05b48abe11353261252b562c7d721a451589f",
         },
         .cpuinfo = .{
-            .url = "https://github.com/silversquirl/cpuinfo-zig/archive/bf816de759cf02c95ee9d94e7e7ab3e373a7286f.tar.gz",
-            .hash = "1220e168bbe411e4a92ffb194a7cf353997e69af530ca9ed4b4411c178948b340995",
+            .url = "https://github.com/silversquirl/cpuinfo-zig/archive/7a7d5aea11addee3b81baa9195ef84593376d39a.tar.gz",
+            .hash = "122048b51d1cdd9dd16c93927a47e9ee3ed7756d1060d33442749ce332b176ef0604",
         },
         .zcompute = .{
-            .url = "https://github.com/silversquirl/zcompute/archive/60312ae55c6447a387462ab0212b7c163dfd50d3.tar.gz",
-            .hash = "12206a1edb5a051dbdbdd106bdc19ac3f1f1237de076e80fb7325d5a98a98f8df54b",
+            .url = "https://github.com/silversquirl/zcompute/archive/321f260b3170e1a66cf9abf29f4d0ae5115b2185.tar.gz",
+            .hash = "12202fe573ff7fd505d2e00dc1c8eaa2393efb6ae1806abed15254c311d473b9eff2",
         },
     },
 }

@@ -39,7 +39,7 @@ pub const Context = struct {
             return error.VulkanInit;
         };
 
-        self.shad = Shader.initBytes(arena.allocator(), &self.ctx, @embedFile("shader/search.spv")) catch |err| {
+        self.shad = Shader.initBytes(arena.allocator(), &self.ctx, @embedFile("search_spv")) catch |err| {
             log.err("Shader init error: {s}", .{@errorName(err)});
             return error.ShaderInit;
         };

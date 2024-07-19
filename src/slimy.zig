@@ -57,7 +57,6 @@ pub const Result = struct {
 };
 
 test {
-    @import("std").testing.refAllDecls(@This());
-    @import("std").testing.refAllDecls(cpu);
-    @import("std").testing.refAllDecls(gpu);
+    _ = cpu;
+    _ = gpu;
 }
