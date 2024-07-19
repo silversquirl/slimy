@@ -2,7 +2,7 @@ const std = @import("std");
 
 const slimy_version = std.SemanticVersion.parse("0.1.0-dev") catch @panic("Parse error");
 
-pub fn build(b: *std.build.Builder) !void {
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const singlethread = b.option(bool, "singlethread", "Build in single-threaded mode") orelse false;
@@ -11,16 +11,15 @@ pub fn build(b: *std.build.Builder) !void {
     const timestamp = b.option(bool, "timestamp", "Include build timestamp in version information") orelse false;
     const glslc = b.option([]const u8, "glslc", "Specify the path to the glslc binary") orelse "glslc";
 
-    const shaders = b.addSystemCommand(&.{
-        glslc, "-o", "search.spv", "search.comp",
-    });
-    shaders.cwd = b.build_root.join(b.allocator, &.{ "src", "shader" }) catch @panic("OOM");
+    const shader_compile = b.addSystemCommand(&.{ glslc, "-o" });
+    const shader_spv = shader_compile.addOutputFileArg("search.spv");
+    shader_compile.addFileArg(b.path("src/shader/search.comp"));
 
     var version = slimy_version;
     if (version.pre != null) {
         // Find git commit hash
         var code: u8 = undefined;
-        if (b.execAllowFail(
+        if (b.runAllowFail(
             &.{ "git", "rev-parse", "--short", "HEAD" },
             &code,
             .Inherit,
@@ -28,7 +27,7 @@ pub fn build(b: *std.build.Builder) !void {
             version.build = std.mem.trimRight(u8, commit, "\n");
 
             // Add -dirty if we have uncommitted changes
-            _ = b.execAllowFail(
+            _ = b.runAllowFail(
                 &.{ "git", "diff-index", "--quiet", "HEAD" },
                 &code,
                 .Inherit,
@@ -47,27 +46,26 @@ pub fn build(b: *std.build.Builder) !void {
     consts.addOption(?i64, "timestamp", if (timestamp) std.time.timestamp() else null);
 
     const exe_name = if (suffix)
-        b.fmt("slimy-{}-{s}", .{ version, target.zigTriple(b.allocator) catch @panic("OOM") })
+        b.fmt("slimy-{}-{s}", .{ version, target.query.zigTriple(b.allocator) catch @panic("OOM") })
     else
         "slimy";
     const exe = b.addExecutable(.{
         .name = exe_name,
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+        .single_threaded = singlethread,
+        .strip = strip,
+        .linkage = .dynamic,
     });
-
-    exe.addModule("build_consts", consts.createModule());
-    exe.addModule("optz", b.dependency("optz", .{}).module("optz"));
-    exe.addModule("cpuinfo", b.dependency("cpuinfo", .{}).module("cpuinfo"));
-    exe.addModule("zcompute", b.dependency("zcompute", .{}).module("zcompute"));
+    exe.root_module.addImport("build_consts", consts.createModule());
+    exe.root_module.addImport("optz", b.dependency("optz", .{}).module("optz"));
+    exe.root_module.addImport("cpuinfo", b.dependency("cpuinfo", .{}).module("cpuinfo"));
+    exe.root_module.addImport("zcompute", b.dependency("zcompute", .{}).module("zcompute"));
+    exe.root_module.addImport("search_spv", b.createModule(.{ .root_source_file = shader_spv }));
 
     exe.linkLibC();
-    exe.step.dependOn(&shaders.step);
-    exe.linkage = .dynamic;
 
-    exe.single_threaded = singlethread;
-    exe.strip = strip;
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
@@ -81,16 +79,16 @@ pub fn build(b: *std.build.Builder) !void {
 
     const wasm = b.addSharedLibrary(.{
         .name = "slimy",
-        .root_source_file = .{ .path = "src/web.zig" },
-        .target = try std.zig.CrossTarget.parse(.{
+        .root_source_file = b.path("src/web.zig"),
+        .target = b.resolveTargetQuery(std.Build.parseTargetQuery(.{
             .arch_os_abi = "wasm32-freestanding",
-        }),
+        }) catch unreachable),
         .optimize = optimize,
+        .single_threaded = true,
     });
-    wasm.single_threaded = true;
 
     const web = b.addInstallDirectory(.{
-        .source_dir = .{ .path = "web" },
+        .source_dir = b.path("web"),
         .install_dir = .prefix,
         .install_subdir = "web",
     });
@@ -100,9 +98,4 @@ pub fn build(b: *std.build.Builder) !void {
 
     const web_step = b.step("web", "Build web UI");
     web_step.dependOn(&web.step);
-
-    const test_step = b.addTest(.{
-        .root_source_file = .{ .path = "src/slimy.zig" },
-    });
-    b.step("test", "Run tests").dependOn(&test_step.step);
 }

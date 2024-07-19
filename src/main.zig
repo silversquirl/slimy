@@ -203,7 +203,7 @@ test "output context" {
         .progress = false,
     });
 
-    var pipe = try std.os.pipe();
+    const pipe = try std.os.pipe();
     var readf = std.fs.File{ .handle = pipe[0] };
     defer readf.close();
     var writef = std.fs.File{ .handle = pipe[1] };
