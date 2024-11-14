@@ -139,7 +139,7 @@ const ResultBuffers = struct {
     results: zc.Buffer(slimy.Result),
 
     fn init(ctx: *zc.Context) !ResultBuffers {
-        const count = try zc.Buffer(u32).init(ctx, 1, .{ .map = true, .storage = true });
+        var count = try zc.Buffer(u32).init(ctx, 1, .{ .map = true, .storage = true });
         errdefer count.deinit();
         (try count.map())[0] = 0;
         count.unmap();
@@ -159,7 +159,7 @@ const ResultBuffers = struct {
     }
 
     fn report(
-        self: ResultBuffers,
+        self: *ResultBuffers,
         callback_context: anytype,
         comptime resultCallback: fn (@TypeOf(callback_context), slimy.Result) void,
     ) !void {

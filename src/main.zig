@@ -46,14 +46,8 @@ pub fn main() u8 {
             std.log.err("Missing option parameter", .{});
             return 1;
         },
-        error.InvalidFormat => {
-            std.log.err("Invalid output format. Must be 'human' or 'csv'", .{});
-            return 1;
-        },
-        error.InvalidMethod => {
-            std.log.err("Invalid search method. Must be 'gpu' or 'cpu'", .{});
-            return 1;
-        },
+        error.InvalidFormat => return 1,
+        error.InvalidMethod => return 1,
         error.InvalidCharacter => {
             std.log.err("Invalid number", .{});
             return 1;
@@ -279,12 +273,18 @@ fn parseArgs(arena: std.mem.Allocator) ArgsError!Options {
     if (flags.b) return error.Benchmark;
 
     const format = std.meta.stringToEnum(OutputOptions.Format, flags.f) orelse {
+        std.log.err("Invalid output format '{'}'. Must be 'human' or 'csv'", .{
+            std.zig.fmtEscapes(flags.f),
+        });
         return error.InvalidFormat;
     };
 
     const progress = !flags.q and std.io.getStdErr().supportsAnsiEscapeCodes();
 
     const method_id = std.meta.stringToEnum(std.meta.Tag(slimy.SearchMethod), flags.m) orelse {
+        std.log.err("Invalid search method '{'}'. Must be 'gpu' or 'cpu'", .{
+            std.zig.fmtEscapes(flags.m),
+        });
         return error.InvalidMethod;
     };
 

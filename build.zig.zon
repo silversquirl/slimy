@@ -1,6 +1,7 @@
 .{
     .name = "slimy",
     .version = "0.1.0-dev",
+    .minimum_zig_version = "0.13.0",
     .paths = .{
         "LICENSE",
         "README.md",
@@ -11,16 +12,16 @@
     },
     .dependencies = .{
         .optz = .{
-            .url = "https://github.com/silversquirl/optz/archive/63c1c02ecbbfe18fa898b5b86dbee0e5e30df099.tar.gz",
-            .hash = "12200ca26c64345c3fd64caf744205c05b48abe11353261252b562c7d721a451589f",
+            .url = "git+https://github.com/silversquirl/optz#c9a3882f2eee8bfd9452ec204b9ba7ab51cb51dc",
+            .hash = "122064f97f973a3fc1652fd4eeb90c7daa953677e7475c7a18d31809dc84a760be06",
         },
         .cpuinfo = .{
-            .url = "https://github.com/silversquirl/cpuinfo-zig/archive/7a7d5aea11addee3b81baa9195ef84593376d39a.tar.gz",
+            .url = "git+https://github.com/silversquirl/cpuinfo-zig#7a7d5aea11addee3b81baa9195ef84593376d39a",
             .hash = "122048b51d1cdd9dd16c93927a47e9ee3ed7756d1060d33442749ce332b176ef0604",
         },
         .zcompute = .{
-            .url = "https://github.com/silversquirl/zcompute/archive/321f260b3170e1a66cf9abf29f4d0ae5115b2185.tar.gz",
-            .hash = "12202fe573ff7fd505d2e00dc1c8eaa2393efb6ae1806abed15254c311d473b9eff2",
+            .url = "git+https://github.com/silversquirl/zcompute#094670e754cca0bf87b0c551e95c14ecb1f2186c",
+            .hash = "12208114291786678c429e3680ce1fde6cc4f31f1ad3b735c4e530c1f990d854e7b3",
         },
     },
 }
