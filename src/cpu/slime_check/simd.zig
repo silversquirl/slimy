@@ -70,9 +70,23 @@ pub const Random = struct {
 
         const bounds: Vec32 = @splat(bound);
 
+        const bits: Vec32 = self.next(31);
+        const val: Vec32 = @mod(bits, bounds);
+        const biased = bits - val +% @as(Vec32, @splat(bound - 1)) < @as(Vec32, @splat(0));
+        if (@reduce(.Or, biased)) {
+            return self.fixBias(bound, val, biased);
+        }
+        return val;
+    }
+
+    pub noinline fn fixBias(self: *@This(), comptime bound: i32, val_in: Vec32, biased_in: Vecb) Vec32 {
+        @setCold(true);
+        const bounds: Vec32 = @splat(bound);
+
         var bits: Vec32 = self.next(31);
-        var val: Vec32 = @mod(bits, bounds);
-        var biased = bits - val +% @as(Vec32, @splat(bound - 1)) < @as(Vec32, @splat(0));
+        var val: Vec32 = val_in;
+        var biased = biased_in;
+
         while (@reduce(.Or, biased)) {
             bits = self.next(31);
             val = @select(i32, biased, @mod(bits, bounds), val);
