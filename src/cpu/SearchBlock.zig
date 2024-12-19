@@ -48,7 +48,6 @@ pub fn initScalar(world_seed: i64, min_x: i32, min_z: i32) @This() {
 
 /// Initialize chunks with simd routine
 pub fn initSimd(world_seed: i64, min_x: i32, min_z: i32) @This() {
-    // std.debug.print("searching block [{}, {}] -> ({}, {})\n", .{ min_x, min_z, min_x + tested_size, min_z + tested_size });
     const lanes = simd.lanes;
     comptime std.debug.assert(@mod(size, lanes) == 0);
 
@@ -91,7 +90,7 @@ pub fn preprocess(self: *@This()) void {
 
 /// [.@] - ignore
 /// [+] - use preprocessed value
-/// [-] - use preprocessed value but value of chunk
+/// [-] - use preprocessed value but subtract slime value of chunk
 /// [o] - use slime value of chunk
 const mask: [17][17]u8 = .{
     strip(". . . . . . . . o . . . . . . . .".*),
@@ -181,26 +180,38 @@ pub fn calculateSliminess(
         for (0..size - mask.len + 1) |z| {
             var count: u8 = 0;
 
+            // The .strip_count field is stored in the upper 4 bits of the Cell struct.
+            // The other field is .slime, which is u4 for padding purposes but is actually stores bool.
+            // To access .strip_count, zig/llvm shifts the backing int of Cell (u8) left: >> 4.
+            // However, since .slime is guaranteed to be 0 or 1, we can just directly add the backing
+            // ints together up to 15 times before overflow occurs and shift >> 4 at the end.
+            // Since use_preprocessed contains more than 15 elements, we split it into two sub-arrays.
+            // This optimization saves 24 (26 - 2) right shifts, and combined with similar optimizations for
+            // add_count and sub_count, speeds up the function by over 80%.
+            // I tried signalling to LLVM that the padding bits are always 0 with asserts,
+            // but it was unable to perform the optimization. I discussed it with qwerasd in the Zig discord
+            // and they said, after experimentation, "it seems like it does not have any concept of 'the lower
+            // bits will never overflow in to this area, so we don't need to pre-shift'".
+
             var preprocessed_count_1: u16 = 0;
-            inline for (use_preprocessed[0..15]) |location| {
+            for (use_preprocessed[0..15]) |location| {
                 preprocessed_count_1 += @as(u8, @bitCast(self.data[x * size + z + location.x * size + location.z]));
             }
             var preprocessed_count_2: u16 = 0;
-            inline for (use_preprocessed[15..]) |location| {
+            for (use_preprocessed[15..]) |location| {
                 preprocessed_count_2 += @as(u8, @bitCast(self.data[x * size + z + location.x * size + location.z]));
             }
             count += @intCast((preprocessed_count_1 >> 4) + (preprocessed_count_2 >> 4));
 
             var add_count: u16 = 0;
-            inline for (add) |location| add_count += @as(u8, @bitCast(self.data[x * size + z + location.x * size + location.z]));
+            for (add) |location| add_count += @as(u8, @bitCast(self.data[x * size + z + location.x * size + location.z]));
             count += @intCast(add_count & 0xf);
 
             var sub_count: u16 = 0;
-            inline for (sub) |location| sub_count += @as(u8, @bitCast(self.data[x * size + z + location.x * size + location.z]));
+            for (sub) |location| sub_count += @as(u8, @bitCast(self.data[x * size + z + location.x * size + location.z]));
             count -= @intCast(sub_count & 0xf);
 
             if (count >= params.threshold) {
-                @setCold(true);
                 sufficiently_slimy_chunks += 1;
                 const real_x = @as(i32, @intCast(x + offset)) + self.min_x;
                 const real_z = @as(i32, @intCast(z + offset)) + self.min_z;
@@ -220,42 +231,16 @@ pub fn calculateSliminess(
     return sufficiently_slimy_chunks;
 }
 
-/// For every chunk within the searched area defined by this `SearchBlock`
-/// checks whether the amount of slime chunk slime chunks in spawn range of a player
-/// at the center of each chunk meets the given `threshold`
-pub fn calculateSliminessUncached(
-    self: *@This(),
-    comptime threshold: u8,
-    context: anytype,
-    comptime resultCallback: fn (@TypeOf(context), slimy.Result) void,
-) void {
-    for (0..size - mask.len) |x| {
-        for (0..size - mask.len) |z| {
-            var count: u8 = 0;
-            for (comptime getDistMask(), 0..) |row, i| {
-                for (row, 0..) |b, j| {
-                    count += @intFromBool(b and @import("slime_check/scalar.zig").isSlime(0x51133, @intCast(x + i), @intCast(z + j)));
-                }
-            }
-            if (count >= threshold) {
-                @setCold(true);
-                // @branchHint(.unlikely);
-
-                resultCallback(context, .{
-                    .x = @as(i32, @intCast(x + offset)) + self.min_x,
-                    .z = @as(i32, @intCast(z + offset)) + self.min_z,
-                    .count = count,
-                });
-            }
-        }
-    }
-}
-
 pub fn calculateSliminessForLocation(world_seed: i64, x: i32, z: i32) u8 {
     var count: u8 = 0;
     for (0..mask.len) |x_0| {
         for (0..mask.len) |z_0| {
-            count += @intFromBool((comptime getDistMask())[x_0][z_0] and scalar.isSlime(world_seed, x + @as(i32, @intCast(x_0)) - offset, z + @as(i32, @intCast(z_0)) - offset));
+            const slime = scalar.isSlime(
+                world_seed,
+                x + @as(i32, @intCast(x_0)) - offset,
+                z + @as(i32, @intCast(z_0)) - offset,
+            );
+            count += @intFromBool(bit_mask[x_0][z_0] and slime);
         }
     }
     return count;
@@ -289,7 +274,7 @@ pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOp
     _ = options;
 }
 
-pub fn getDistMask() [17][17]bool {
+const bit_mask: [17][17]bool = blk: {
     const inner = 1;
     const outer = 8;
     const dim = 2 * outer + 1;
@@ -302,8 +287,8 @@ pub fn getDistMask() [17][17]bool {
             bit.* = inner * inner < d2 and d2 <= outer * outer;
         }
     }
-    return dist_mask;
-}
+    break :blk dist_mask;
+};
 
 test initScalar {
     const chunk = initScalar(0x51133, offset, offset);
@@ -317,6 +302,17 @@ test initScalar {
 }
 
 test initSimd {
+    const chunk = initSimd(0x51133, offset, offset);
+
+    const block = @import("test_data.zig").block;
+    for (block, 0..) |row, z| {
+        for (row, 0..) |c, x| {
+            try std.testing.expectEqual(c == 'O', chunk.data[x * size + z].slime == 1);
+        }
+    }
+}
+
+test "initSimd and initScalar parity" {
     try std.testing.expectEqualSlices(
         Cell,
         &initScalar(0x51133, 0xbeef, -0x51133135).data,
@@ -341,4 +337,25 @@ test format {
     if (true) return error.SkipZigTest;
     const chunk = initScalar(0x51133, offset, offset);
     std.debug.print("{0[32x32]}", .{chunk});
+}
+
+test calculateSliminess {
+    var results = std.ArrayList(slimy.Result).init(std.testing.allocator);
+    defer results.deinit();
+
+    var chunk = initSimd(0x51133, 0, 0);
+    chunk.preprocess();
+    _ = chunk.calculateSliminess(
+        .{ .x0 = 0, .x1 = size, .z0 = 0, .z1 = size, .method = undefined, .threshold = 0, .world_seed = 0x51133 },
+        &results,
+        reportResultTest,
+    );
+    try std.testing.expectEqual(tested_size * tested_size, results.items.len);
+    for (results.items) |result| {
+        try std.testing.expectEqual(calculateSliminessForLocation(0x51133, result.x, result.z), result.count);
+    }
+}
+
+pub fn reportResultTest(context: *std.ArrayList(slimy.Result), result: slimy.Result) void {
+    context.append(result) catch {};
 }
