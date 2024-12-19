@@ -203,14 +203,20 @@ test "output context" {
         .progress = false,
     });
 
-    const pipe = try std.os.pipe();
-    var readf = std.fs.File{ .handle = pipe[0] };
-    var writef = std.fs.File{ .handle = pipe[1] };
-    defer writef.close();
+    if (@import("builtin").os.tag != .windows) {
+        const pipe = try std.posix.pipe();
+        var readf = std.fs.File{ .handle = pipe[0] };
+        defer readf.close();
+        var writef = std.fs.File{ .handle = pipe[1] };
+        defer writef.close();
 
-    ctx.f = writef;
-    ctx.progress(1, 10);
-    ctx.flush();
+        ctx.f = std.io.getStdOut();
+        ctx.progress(1, 10);
+        ctx.flush();
+    } else {
+        ctx.progress(1, 10);
+        ctx.flush();
+    }
 }
 
 fn usage(out: std.fs.File) void {
@@ -357,7 +363,7 @@ fn parseArgs(arena: std.mem.Allocator) ArgsError!Options {
         s[0] =
             .{
             .world_seed = seed,
-            .threshold = try std.fmt.parseInt(i32, threshold, 10),
+            .threshold = try std.fmt.parseInt(u8, threshold, 10),
 
             .x0 = -range_n,
             .z0 = -range_n,
@@ -388,7 +394,7 @@ fn readJsonParams(arena: std.mem.Allocator, path: []const u8) ![]const JsonParam
     return std.json.parseFromSliceLeaky([]const JsonParams, arena, data, .{});
 }
 const JsonParams = struct {
-    threshold: i32,
+    threshold: u8,
 
     x0: i32,
     z0: i32,

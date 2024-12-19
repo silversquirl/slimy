@@ -85,6 +85,8 @@ pub fn build(b: *std.Build) !void {
         .single_threaded = singlethread,
         .strip = strip,
     });
+    tests.linkLibC();
+
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_tests.step);
