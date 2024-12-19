@@ -15,7 +15,7 @@ pub fn search(
 
 pub const SearchParams = struct {
     world_seed: i64,
-    threshold: i32,
+    threshold: u8,
 
     x0: i32,
     z0: i32,
@@ -24,6 +24,7 @@ pub const SearchParams = struct {
 
     method: SearchMethod,
 };
+
 pub const SearchMethod = union(enum) {
     cpu: u8, // Thread count
     gpu: void,
