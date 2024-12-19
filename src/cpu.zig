@@ -62,6 +62,9 @@ pub fn searchMultithread(
     std.debug.assert(params.x0 < params.x1);
     std.debug.assert(params.z0 < params.z1);
 
+    // Reset chunk search counter
+    chunks_searched = std.atomic.Value(usize).init(0);
+
     var threads = std.BoundedArray(std.Thread, 255).init(0) catch unreachable;
     const thread_count = params.method.cpu;
     for (0..thread_count) |thread_index| {
@@ -101,12 +104,21 @@ pub fn worker(
     const start_block = blocks_x * blocks_z * thread_id / thread_count;
     const end_block = blocks_x * blocks_z * (thread_id + 1) / thread_count;
 
+    var i: usize = 0;
     for (start_block..end_block) |block_index| {
         const rel_block_x = block_index / blocks_x;
         const rel_block_z = @mod(block_index, blocks_x);
         var chunk = SearchBlock.initSimd(params.world_seed, params.x0 + @as(i32, @intCast(rel_block_x * block_size)), params.z0 + @as(i32, @intCast(rel_block_z * block_size)));
         chunk.preprocess();
         _ = chunk.calculateSliminess(params, context, resultCallback);
-        (progressCallback orelse continue)(context, block_index - start_block, end_block - start_block);
+        i += 1;
+        if (i == 20) {
+            _ = chunks_searched.fetchAdd(i, .monotonic);
+            i = 0;
+            if (thread_id == 0) (progressCallback orelse continue)(context, chunks_searched.raw, blocks_x * blocks_z);
+        }
     }
+    _ = chunks_searched.fetchAdd(i, .monotonic);
 }
+
+var chunks_searched = std.atomic.Value(usize).init(0);

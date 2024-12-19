@@ -162,11 +162,15 @@ const OutputContext = struct {
 
         if (self.progress_timer) |*timer| {
             const tick = timer.read() / progress_tick;
-            self.progressLineClear();
-            std.debug.print("[{u}] {d:.2}%", .{
+            const stdErr = std.io.getStdErr();
+            var buffered_writer: std.io.BufferedWriter(64, std.fs.File.Writer) = .{ .unbuffered_writer = stdErr.writer() };
+
+            _ = buffered_writer.write("\r\x1b[K") catch unreachable;
+            buffered_writer.writer().print("[{u}] {d:.2}%", .{
                 progress_spinner[tick % progress_spinner.len],
                 @as(f64, @floatFromInt(100_00 * completed / total)) * 0.01,
-            });
+            }) catch unreachable;
+            buffered_writer.flush() catch {};
         }
     }
 
