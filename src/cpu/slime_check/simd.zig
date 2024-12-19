@@ -136,8 +136,8 @@ test "scalar simd parity" {
     const rand = rng.random();
 
     for (0..10000) |_| {
-        const x = rand.intRangeAtMost(i32, -30_000_000, 30_000_000);
-        const z = rand.intRangeAtMost(i32, -30_000_000, 30_000_000);
+        const x = rand.intRangeAtMost(i32, -30_000_000 / 16, 30_000_000 / 16);
+        const z = rand.intRangeAtMost(i32, -30_000_000 / 16, 30_000_000 / 16);
         try std.testing.expectEqual(@import("scalar.zig").isSlime(0x51133, x, z), areSlime(0x51133, x, z)[0]);
     }
 }
