@@ -115,7 +115,9 @@ pub fn worker(
         if (i == 20) {
             _ = chunks_searched.fetchAdd(i, .monotonic);
             i = 0;
-            if (thread_id == 0) (progressCallback orelse continue)(context, chunks_searched.raw, blocks_x * blocks_z);
+            if (thread_id == 0 and progressCallback != null) {
+                progressCallback.?(context, chunks_searched.raw, blocks_x * blocks_z);
+            }
         }
     }
     _ = chunks_searched.fetchAdd(i, .monotonic);

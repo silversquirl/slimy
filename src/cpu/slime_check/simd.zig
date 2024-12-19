@@ -34,21 +34,13 @@ pub fn getRandomSeeds(world_seed: i64, x: i32, z: i32) Vec64 {
     const magic1: Vec64 = @splat(4392871);
     const magic2: Vec32 = @splat(389711);
 
-    const zs: Vec32 = risingSequence(z);
+    const zs: Vec32 = @as(Vec32, @splat(z)) + @as(Vec32, .{ 0, 1, 2, 3, 4, 5, 6, 7 });
     const z_increment =
         @as(Vec64, zs *% zs) *% magic1 +%
         @as(Vec64, zs *% magic2);
 
     const magic3: Vec64 = @splat(987234911);
     return world_seeds +% x_increment +% z_increment ^ magic3;
-}
-
-pub fn risingSequence(n: i32) Vec32 {
-    return @as(Vec32, @splat(n)) + comptime blk: {
-        var vec: Vec32 = @splat(0);
-        for (0..lanes) |i| vec[i] = i;
-        break :blk vec;
-    };
 }
 
 /// Calculates `lanes` random numbers in parallel
