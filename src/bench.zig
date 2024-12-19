@@ -26,7 +26,7 @@ fn mainInternal() !void {
     //  - check that slimy is generating the expected results
     //  - get a rough estimate of how fast things are running, to base later benchmarks on
 
-    var collector = Collector{};
+    var collector: Collector = .{};
     var params = warmup_params;
     var timer = try std.time.Timer.start();
 
@@ -100,7 +100,7 @@ fn formatIntGrouped(
 }
 
 const test_seed: i64 = -2152535657050944081;
-const warmup_params = slimy.SearchParams{
+const warmup_params: slimy.SearchParams = .{
     .world_seed = test_seed,
     .threshold = 39,
 
@@ -111,7 +111,7 @@ const warmup_params = slimy.SearchParams{
 
     .method = undefined,
 };
-const warmup_results = &[_]slimy.Result{
+const warmup_results: []const slimy.Result = &.{
     .{ .x = 949, .z = -923, .count = 43 },
     .{ .x = 950, .z = -924, .count = 42 },
     .{ .x = 245, .z = 481, .count = 40 },
@@ -183,18 +183,11 @@ const Collector = struct {
     }
 
     pub fn check(self: *Collector, expected: []const slimy.Result) !void {
-        if (expected.len != self.n) {
-            return error.IncorrectResults;
-        }
         std.sort.block(slimy.Result, self.buf[0..self.n], {}, slimy.Result.sortLessThan);
         std.debug.assert(
             std.sort.isSorted(slimy.Result, expected, {}, slimy.Result.sortLessThan),
         );
-        for (expected, 0..) |r, i| {
-            if (!std.meta.eql(r, self.buf[i])) {
-                return error.IncorrectResults;
-            }
-        }
+        try std.testing.expectEqualSlices(slimy.Result, expected, self.buf[0..self.n]);
     }
 };
 
