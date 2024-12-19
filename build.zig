@@ -77,6 +77,18 @@ pub fn build(b: *std.Build) !void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
+    const tests = b.addTest(.{
+        .name = "slimytest",
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .single_threaded = singlethread,
+        .strip = strip,
+    });
+    const run_tests = b.addRunArtifact(tests);
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_tests.step);
+
     const wasm = b.addSharedLibrary(.{
         .name = "slimy",
         .root_source_file = b.path("src/web.zig"),
