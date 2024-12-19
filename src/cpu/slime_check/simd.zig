@@ -74,9 +74,6 @@ pub const Random = struct {
         var val: Vec32 = @mod(bits, bounds);
         var biased = bits - val +% @as(Vec32, @splat(bound - 1)) < @as(Vec32, @splat(0));
         while (@reduce(.Or, biased)) {
-            @setCold(true);
-            // @branchHint(.cold);
-
             bits = self.next(31);
             val = @select(i32, biased, @mod(bits, bounds), val);
             biased = @bitCast(
