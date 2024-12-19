@@ -190,6 +190,12 @@ pub const OutputOptions = struct {
     };
 };
 
+test {
+    _ = @import("cpu/SearchBlock.zig");
+    _ = @import("cpu/slime_check/scalar.zig");
+    _ = @import("cpu/slime_check/simd.zig");
+}
+
 test "output context" {
     var ctx = OutputContext.init(std.testing.allocator, .{
         .format = .csv,
@@ -199,7 +205,6 @@ test "output context" {
 
     const pipe = try std.os.pipe();
     var readf = std.fs.File{ .handle = pipe[0] };
-    defer readf.close();
     var writef = std.fs.File{ .handle = pipe[1] };
     defer writef.close();
 
