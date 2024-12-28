@@ -101,15 +101,14 @@ pub fn build(b: *std.Build) !void {
     wasm.rdynamic = true;
     wasm.entry = .disabled;
 
-    const web = b.addInstallDirectory(.{
+    const web_source = b.addInstallDirectory(.{
         .source_dir = b.path("web"),
-        .install_dir = .prefix,
-        .install_subdir = "web",
+        .install_dir = .{ .custom = "web" },
     });
-    web.step.dependOn(&b.addInstallArtifact(wasm, .{
-        .dest_dir = .{ .override = .{ .custom = "web" } },
-    }).step);
 
     const web_step = b.step("web", "Build web UI");
-    web_step.dependOn(&web.step);
+    web_step.dependOn(&web_source.step);
+    web_step.dependOn(&b.addInstallArtifact(wasm, .{
+        .dest_dir = .{ .override = .{ .custom = "web" } },
+    }).step);
 }
