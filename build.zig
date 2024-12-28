@@ -89,7 +89,7 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_tests.step);
 
-    const wasm = b.addSharedLibrary(.{
+    const wasm = b.addExecutable(.{
         .name = "slimy",
         .root_source_file = b.path("src/web.zig"),
         .target = b.resolveTargetQuery(std.Build.parseTargetQuery(.{
@@ -98,6 +98,8 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
         .single_threaded = true,
     });
+    wasm.rdynamic = true;
+    wasm.entry = .disabled;
 
     const web = b.addInstallDirectory(.{
         .source_dir = b.path("web"),
