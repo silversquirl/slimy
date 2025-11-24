@@ -9,7 +9,13 @@ pub fn search(
 ) !void {
     switch (params.method) {
         .cpu => try cpu.search(params, context, resultCallback, progressCallback),
-        .gpu => try gpu.search(params, context, resultCallback, progressCallback),
+        .gpu => {
+            if (!@import("build_consts").gpu_support) {
+                return error.GpuNotSupported;
+            } else {
+                try gpu.search(params, context, resultCallback, progressCallback);
+            }
+        },
     }
 }
 
@@ -59,5 +65,5 @@ pub const Result = struct {
 
 test {
     _ = cpu;
-    _ = gpu;
+    if (@import("build_consts").gpu_support) _ = gpu;
 }

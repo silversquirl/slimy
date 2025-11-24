@@ -340,22 +340,28 @@ test format {
 }
 
 test calculateSliminess {
-    var results = std.ArrayList(slimy.Result).init(std.testing.allocator);
-    defer results.deinit();
+    var results: std.ArrayList(slimy.Result) = .empty;
+    defer results.deinit(std.testing.allocator);
 
     var chunk = initSimd(0x51133, 0, 0);
     chunk.preprocess();
+
+    const Context = struct {
+        allocator: std.mem.Allocator,
+        results: *std.ArrayList(slimy.Result),
+        fn reportResult(context: @This(), result: slimy.Result) void {
+            context.results.append(context.allocator, result) catch {};
+        }
+    };
+
     _ = chunk.calculateSliminess(
         .{ .x0 = 0, .x1 = size, .z0 = 0, .z1 = size, .method = undefined, .threshold = 0, .world_seed = 0x51133 },
-        &results,
-        reportResultTest,
+        @as(Context, .{ .allocator = std.testing.allocator, .results = &results }),
+        Context.reportResult,
     );
+
     try std.testing.expectEqual(tested_size * tested_size, results.items.len);
     for (results.items) |result| {
         try std.testing.expectEqual(calculateSliminessForLocation(0x51133, result.x, result.z), result.count);
     }
-}
-
-pub fn reportResultTest(context: *std.ArrayList(slimy.Result), result: slimy.Result) void {
-    context.append(result) catch {};
 }

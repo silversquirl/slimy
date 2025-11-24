@@ -32,7 +32,6 @@ pub fn searchSinglethread(
     std.debug.assert(params.x0 < params.x1);
     std.debug.assert(params.z0 < params.z1);
     const block_size = SearchBlock.tested_size;
-
     var completed_chunks: usize = 0;
     const width: u64 = @intCast(params.x1 - params.x0);
     const height: u64 = @intCast(params.z1 - params.z0);
@@ -65,11 +64,12 @@ pub fn searchMultithread(
     // Reset chunk search counter
     chunks_searched = std.atomic.Value(usize).init(0);
 
-    var threads = std.BoundedArray(std.Thread, 255).init(0) catch unreachable;
+    var threads_buf: [256]std.Thread = undefined;
+    var threads: std.ArrayList(std.Thread) = .initBuffer(&threads_buf);
     const thread_count = params.method.cpu;
     for (0..thread_count) |thread_index| {
-        threads.append(try std.Thread.spawn(
-            .{ .stack_size = 64 * 1024 },
+        threads.appendBounded(try std.Thread.spawn(
+            .{},
             worker,
             .{
                 params,
@@ -80,9 +80,10 @@ pub fn searchMultithread(
                 thread_count,
             },
         )) catch unreachable;
+        std.log.scoped(.thread).debug("spawned thread {}", .{thread_index});
     }
     std.Thread.yield() catch {};
-    for (threads.slice()) |thread| {
+    for (threads.items) |thread| {
         thread.join();
     }
 }
@@ -95,6 +96,7 @@ pub fn worker(
     thread_id: usize,
     thread_count: usize,
 ) !void {
+    std.log.scoped(.thread).debug("thread {} entered", .{thread_id});
     const block_size = SearchBlock.tested_size;
 
     const blocks_x = try std.math.divCeil(usize, @intCast(params.x1 - params.x0), block_size);
@@ -110,6 +112,7 @@ pub fn worker(
         const rel_block_z = @mod(block_index, blocks_x);
         var chunk = SearchBlock.initSimd(params.world_seed, params.x0 + @as(i32, @intCast(rel_block_x * block_size)), params.z0 + @as(i32, @intCast(rel_block_z * block_size)));
         chunk.preprocess();
+
         _ = chunk.calculateSliminess(params, context, resultCallback);
         i += 1;
         if (i == 20) {
@@ -120,7 +123,10 @@ pub fn worker(
             }
         }
     }
+
     _ = chunks_searched.fetchAdd(i, .monotonic);
+
+    std.log.scoped(.thread).debug("thread {} finished", .{thread_id});
 }
 
 var chunks_searched = std.atomic.Value(usize).init(0);

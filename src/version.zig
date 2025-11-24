@@ -5,7 +5,7 @@ const epoch = std.time.epoch;
 
 pub const version = build_consts.version;
 
-pub const desc = std.fmt.comptimePrint("slimy ({s}) v{}", .{
+pub const desc = std.fmt.comptimePrint("slimy ({s}) v{f}", .{
     @tagName(builtin.mode),
     version,
 });
