@@ -13,23 +13,16 @@
     },
     .dependencies = .{
         .optz = .{
-            .path = "../optz",
-            // .url = "git+https://github.com/silversquirl/optz#c9a3882f2eee8bfd9452ec204b9ba7ab51cb51dc",
-            // .hash = "122064f97f973a3fc1652fd4eeb90c7daa953677e7475c7a18d31809dc84a760be06",
+            .url = "git+https://github.com/InspectorBoat/optz.git#68e9a3915254119df6dffb18dffe2e3b3ad62b5a",
+            .hash = "optz-0.1.0-G0SpG90hAAAI9PRlJsBWq4DZlEWOKOCebWniMTEAbBYS",
         },
         .cpuinfo = .{
-            .path = "../cpuinfo-zig",
-            // .url = "git+https://github.com/silversquirl/cpuinfo-zig#7a7d5aea11addee3b81baa9195ef84593376d39a",
-            // .hash = "122048b51d1cdd9dd16c93927a47e9ee3ed7756d1060d33442749ce332b176ef0604",
+            .url = "git+https://github.com/InspectorBoat/cpuinfo-zig#28649909a75aa2056c8ddabd6c538d846d11d78b",
+            .hash = "cpuinfo-0.2.0-KAgw8dYhAAADblj3RJoOUWgwUZZcWMK56ECPpRBLQmYU",
         },
         .zcompute = .{
-            .path = "../zcompute",
-            .lazy = true,
-            // .url = "git+https://github.com/silversquirl/zcompute#094670e754cca0bf87b0c551e95c14ecb1f2186c",
-            // .hash = "12208114291786678c429e3680ce1fde6cc4f31f1ad3b735c4e530c1f990d854e7b3",
-        },
-        .localasm = .{
-            .path = "../localasm",
+            .url = "git+https://github.com/InspectorBoat/zcompute.git#248ad613c5133ff826096595001f451ddaf8c8b4",
+            .hash = "zcompute-0.1.0-dev-nNmXK7M4IQAhXrEM98WgcNZ63uKxLkiHTS0OcBi2cRrb",
         },
     },
 }
