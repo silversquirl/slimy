@@ -36,8 +36,8 @@ pub fn build(b: *std.Build) !void {
             .optimize = optimize,
             .single_threaded = singlethread,
             .strip = strip,
+            .link_libc = true,
         }),
-        .linkage = .dynamic,
     });
     exe.root_module.addImport("build_consts", consts.createModule());
     exe.root_module.addImport("optz", b.dependency("optz", .{}).module("optz"));
@@ -47,7 +47,6 @@ pub fn build(b: *std.Build) !void {
         exe.root_module.addImport("zcompute", (b.lazyDependency("zcompute", .{}) orelse break :gpu_support).module("zcompute"));
         exe.root_module.addImport("search_spv", b.createModule(.{ .root_source_file = shader_spv }));
     }
-    exe.linkLibC();
 
     b.installArtifact(exe);
 
@@ -63,7 +62,6 @@ pub fn build(b: *std.Build) !void {
     const tests = b.addTest(.{
         .root_module = exe.root_module,
     });
-    tests.linkLibC();
 
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run unit tests");
