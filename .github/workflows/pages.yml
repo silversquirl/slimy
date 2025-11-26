@@ -1,35 +1,23 @@
 name: Deploy GitHub Pages
-
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'web/**'
-      - '**.zig'
-      - '.github/**'
-
+on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/cache@v2
-        with:
-          key: ${{ runner.os }}-build
-          path: |
-            zig-cache
-            ~/.cache/deps-zig
-
-      - uses: actions/checkout@v2
-      - uses: goto-bus-stop/setup-zig@v1
-        with: {version: master}
-
+      - uses: actions/checkout@v6
+      - uses: mlugg/setup-zig@v2
+        with: {version: "0.15.2"}
       - name: Build web interface
         run: zig build -Doptimize=ReleaseFast web
-
-      - name: Deploy to GitHub pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{secrets.GITHUB_TOKEN}}
-          publish_dir: ./zig-out/web
+      - uses: actions/upload-pages-artifact@v4
+        with: {path: ./zig-out/web}
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{steps.deployment.outputs.page_url}}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
