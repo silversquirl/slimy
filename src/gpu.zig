@@ -1,3 +1,7 @@
+comptime {
+    if (!@import("build_consts").gpu_support) @compileError("Tried to reference gpu search in build without GPU support");
+}
+
 const std = @import("std");
 const common = @import("common.zig");
 const slimy = @import("slimy.zig");
