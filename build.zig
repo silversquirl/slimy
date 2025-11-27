@@ -38,6 +38,8 @@ pub fn build(b: *std.Build) !void {
             .strip = strip,
             .link_libc = true,
         }),
+        // Self-hosted has far 400x worse performance than llvm debug mode
+        .use_llvm = true,
     });
     exe.root_module.addImport("build_consts", consts.createModule());
     exe.root_module.addImport("optz", b.dependency("optz", .{}).module("optz"));
