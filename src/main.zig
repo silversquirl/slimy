@@ -13,17 +13,6 @@ pub const std_options: std.Options = .{
     },
 };
 
-pub const functions_to_analyze = .{
-    @import("cpu/slime_check/scalar.zig").isSlime,
-    @import("cpu/slime_check/scalar.zig").isSlimeBiased,
-    @import("cpu/slime_check/scalar.zig").getRandomSeed,
-    struct {
-        pub fn nextInt(random: *@import("cpu/slime_check/scalar.zig").Random) i32 {
-            return random.nextIntBasic(10);
-        }
-    }.nextInt,
-};
-
 pub fn main() u8 {
     var arena: std.heap.ArenaAllocator = .init(std.heap.page_allocator);
 
@@ -357,8 +346,7 @@ pub const OutputOptions = struct {
 test {
     _ = OutputContext;
     _ = @import("cpu/SearchBlock.zig");
-    _ = @import("cpu/slime_check/scalar.zig");
-    _ = @import("cpu/slime_check/simd.zig");
+    _ = @import("cpu/slime_check.zig");
 }
 
 fn usage(out: *std.Io.Writer) u8 {

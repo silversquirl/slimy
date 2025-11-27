@@ -1,6 +1,6 @@
 const std = @import("std");
-const scalar = @import("slime_check/scalar.zig");
-const simd = @import("slime_check/simd.zig");
+const scalar = @import("slime_check.zig").scalar;
+const simd = @import("slime_check.zig").simd;
 const slimy = @import("../slimy.zig");
 
 pub const size = 256;
@@ -246,32 +246,14 @@ pub fn calculateSliminessForLocation(world_seed: i64, x: i32, z: i32) u8 {
     return count;
 }
 
-pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-    const width, const height = comptime blk: {
-        if (fmt.len == 0) break :blk .{ 32, 32 };
-        if (fmt[0] != '[' or fmt[fmt.len - 1] != ']') @compileError("format for ProcessingChunk must be surrounded with brackets");
-
-        var parts = std.mem.splitScalar(u8, fmt[1 .. fmt.len - 1], 'x');
-        const width = std.fmt.parseInt(
-            usize,
-            parts.next() orelse @compileError("bad format string for ProcessingChunk"),
-            10,
-        ) catch @compileError("bad format string for ProcessingChunk");
-        const height = std.fmt.parseInt(
-            usize,
-            parts.next() orelse @compileError("bad format string for ProcessingChunk"),
-            10,
-        ) catch @compileError("bad format string for ProcessingChunk");
-
-        break :blk .{ width, height };
-    };
+pub fn format(self: @This(), writer: *std.Io.Writer) !void {
+    const width, const height = .{ 32, 32 };
     for (0..width) |x| {
         for (0..height) |z| {
-            try writer.print("{c} ", .{@as(u8, if (self.data[z * size + x].slime == 1) 254 else '.')});
+            try writer.print("{c} ", .{@as(u8, if (self.data[z * size + x].slime == 1) 'o' else '.')});
         }
         try writer.print("\n", .{});
     }
-    _ = options;
 }
 
 const bit_mask: [17][17]bool = blk: {
@@ -291,7 +273,8 @@ const bit_mask: [17][17]bool = blk: {
 };
 
 test initScalar {
-    const chunk = initScalar(0x51133, offset, offset);
+    const test_seed = @import("test_data.zig").test_seed;
+    const chunk = initScalar(test_seed, offset, offset);
 
     const block = @import("test_data.zig").block;
     for (block, 0..) |row, z| {
@@ -302,7 +285,8 @@ test initScalar {
 }
 
 test initSimd {
-    const chunk = initSimd(0x51133, offset, offset);
+    const test_seed = @import("test_data.zig").test_seed;
+    const chunk = initSimd(test_seed, offset, offset);
 
     const block = @import("test_data.zig").block;
     for (block, 0..) |row, z| {
@@ -327,7 +311,7 @@ test preprocess {
     chunk.preprocess();
     for (0..size) |x| {
         for (0..size) |z| {
-            std.debug.print("{: ^3}", .{chunk.data[x * size + z].strip_count});
+            std.debug.print("{}", .{chunk.data[x * size + z].strip_count});
         }
         std.debug.print("\n", .{});
     }
@@ -335,15 +319,16 @@ test preprocess {
 
 test format {
     if (true) return error.SkipZigTest;
+
     const chunk = initScalar(0x51133, offset, offset);
-    std.debug.print("{0[32x32]}", .{chunk});
+    std.debug.print("{f}", .{chunk});
 }
 
 test calculateSliminess {
+    const test_seed = 0x51133;
     var results: std.ArrayList(slimy.Result) = .empty;
     defer results.deinit(std.testing.allocator);
-
-    var chunk = initSimd(0x51133, 0, 0);
+    var chunk = initSimd(test_seed, 0, 0);
     chunk.preprocess();
 
     const Context = struct {
@@ -355,13 +340,13 @@ test calculateSliminess {
     };
 
     _ = chunk.calculateSliminess(
-        .{ .x0 = 0, .x1 = size, .z0 = 0, .z1 = size, .method = undefined, .threshold = 0, .world_seed = 0x51133 },
+        .{ .x0 = 0, .x1 = size, .z0 = 0, .z1 = size, .method = undefined, .threshold = 0, .world_seed = test_seed },
         @as(Context, .{ .allocator = std.testing.allocator, .results = &results }),
         Context.reportResult,
     );
 
     try std.testing.expectEqual(tested_size * tested_size, results.items.len);
     for (results.items) |result| {
-        try std.testing.expectEqual(calculateSliminessForLocation(0x51133, result.x, result.z), result.count);
+        try std.testing.expectEqual(calculateSliminessForLocation(test_seed, result.x, result.z), result.count);
     }
 }
