@@ -242,6 +242,105 @@ const OutputContext = struct {
     pub fn deinit(self: *OutputContext) void {
         self.buf.deinit(self.allocator);
     }
+
+    test "no progress" {
+        var out: std.Io.Writer.Allocating = .init(std.testing.allocator);
+        var err: std.Io.Writer.Allocating = .init(std.testing.allocator);
+
+        defer out.deinit();
+        defer err.deinit();
+
+        var ctx: OutputContext = .init(std.testing.allocator, &out.writer, &err.writer, .{
+            .format = .csv,
+            .sort = false,
+            .progress = false,
+        });
+        defer ctx.deinit();
+
+        ctx.progress(1, 10);
+        ctx.result(.{ .x = -6, .z = -28, .count = 58 });
+        ctx.progress(2, 10);
+        ctx.result(.{ .x = 28, .z = -11, .count = 180 });
+        ctx.progress(3, 10);
+        ctx.result(.{ .x = -38, .z = -3, .count = 111 });
+
+        ctx.flush();
+        try std.testing.expectEqualStrings(
+            \\-6,-28,58
+            \\28,-11,180
+            \\-38,-3,111
+            \\
+        ,
+            out.written(),
+        );
+        try std.testing.expectEqualStrings("", err.written());
+    }
+
+    test "separate progress" {
+        var out: std.Io.Writer.Allocating = .init(std.testing.allocator);
+        var err: std.Io.Writer.Allocating = .init(std.testing.allocator);
+
+        defer out.deinit();
+        defer err.deinit();
+
+        var ctx: OutputContext = .init(std.testing.allocator, &out.writer, &err.writer, .{
+            .format = .csv,
+            .sort = false,
+            .progress = true,
+        });
+        defer ctx.deinit();
+
+        ctx.progress(1, 10);
+        ctx.result(.{ .x = -6, .z = -28, .count = 58 });
+        ctx.progress(2, 10);
+        ctx.result(.{ .x = 28, .z = -11, .count = 180 });
+        ctx.progress(3, 10);
+        ctx.result(.{ .x = -38, .z = -3, .count = 111 });
+
+        ctx.flush();
+        try std.testing.expectEqualStrings(
+            \\-6,-28,58
+            \\28,-11,180
+            \\-38,-3,111
+            \\
+        ,
+            out.written(),
+        );
+        try std.testing.expect(err.written().len > 0);
+    }
+
+    test "oom" {
+        var out: std.Io.Writer.Allocating = .init(std.testing.allocator);
+        var err: std.Io.Writer.Allocating = .init(std.testing.allocator);
+
+        defer out.deinit();
+        defer err.deinit();
+
+        var ctx: OutputContext = .init(std.testing.failing_allocator, &out.writer, &err.writer, .{
+            .format = .csv,
+            .sort = true,
+            .progress = true,
+        });
+        defer ctx.deinit();
+        std.log.warn("Testing OOM while sorting, warnings are expected", .{});
+        ctx.progress(1, 10);
+        ctx.result(.{ .x = -6, .z = -28, .count = 58 });
+        ctx.progress(2, 10);
+        ctx.result(.{ .x = 28, .z = -11, .count = 180 });
+        ctx.progress(3, 10);
+        ctx.result(.{ .x = -38, .z = -3, .count = 111 });
+
+        ctx.flush();
+        try std.testing.expectEqualStrings(
+            \\-6,-28,58
+            \\28,-11,180
+            \\-38,-3,111
+            \\
+        ,
+            out.written(),
+        );
+        try std.testing.expect(err.written().len > 0);
+    }
 };
 
 pub const OutputOptions = struct {
@@ -256,22 +355,10 @@ pub const OutputOptions = struct {
 };
 
 test {
+    _ = OutputContext;
     _ = @import("cpu/SearchBlock.zig");
     _ = @import("cpu/slime_check/scalar.zig");
     _ = @import("cpu/slime_check/simd.zig");
-}
-
-test OutputContext {
-    var stdout = std.fs.File.stdout().writer(&.{});
-    var stderr = std.fs.File.stderr().writer(&.{});
-    var ctx: OutputContext = .init(std.testing.allocator, &stdout.interface, &stderr.interface, .{
-        .format = .csv,
-        .sort = true,
-        .progress = false,
-    });
-    ctx.progress(1, 10);
-    ctx.flush();
-    ctx.deinit();
 }
 
 fn usage(out: *std.Io.Writer) u8 {
