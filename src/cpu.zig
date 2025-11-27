@@ -50,6 +50,8 @@ pub fn searchSinglethread(
     }
 }
 
+var chunks_searched: std.atomic.Value(usize) = .init(0);
+
 pub fn searchMultithread(
     params: slimy.SearchParams,
     context: anytype,
@@ -62,13 +64,12 @@ pub fn searchMultithread(
     std.debug.assert(params.z0 < params.z1);
 
     // Reset chunk search counter
-    chunks_searched = std.atomic.Value(usize).init(0);
+    chunks_searched = .init(0);
 
-    var threads_buf: [256]std.Thread = undefined;
-    var threads: std.ArrayList(std.Thread) = .initBuffer(&threads_buf);
+    var threads: [std.math.maxInt(@TypeOf(params.method.cpu)) + 1]std.Thread = undefined;
     const thread_count = params.method.cpu;
-    for (0..thread_count) |thread_index| {
-        threads.appendBounded(try std.Thread.spawn(
+    for (threads[0..thread_count], 0..) |*thread, thread_index| {
+        thread.* = try .spawn(
             .{},
             worker,
             .{
@@ -79,11 +80,11 @@ pub fn searchMultithread(
                 thread_index,
                 thread_count,
             },
-        )) catch unreachable;
+        );
         std.log.scoped(.thread).debug("spawned thread {}", .{thread_index});
     }
     std.Thread.yield() catch {};
-    for (threads.items) |thread| {
+    for (threads[0..thread_count]) |thread| {
         thread.join();
     }
 }
@@ -125,8 +126,6 @@ pub fn worker(
     }
 
     _ = chunks_searched.fetchAdd(i, .monotonic);
-
+    // TODO: implement work stealing
     std.log.scoped(.thread).debug("thread {} finished", .{thread_id});
 }
-
-var chunks_searched = std.atomic.Value(usize).init(0);
