@@ -372,7 +372,7 @@ fn usage(out: *std.Io.Writer) u8 {
         \\  -f FORMAT       Output format (human [default] or csv)
         \\  -u              Disable output sorting
         \\  -q              Disable progress reporting
-        \\  -m METHOD       Search method (gpu [default] or cpu)
+        \\  -m METHOD       Search method (cpu [default] or gpu)
         \\  -j THREADS      Number of threads to use (for cpu method only)
         \\  -s FILENAME     Read search parameters from a JSON file (or - for stdin)
         \\  -b              Benchmark mode
@@ -421,7 +421,7 @@ fn parseArgs(arena: std.mem.Allocator) ArgsError!Options {
         u: bool = false,
         q: bool = false,
 
-        m: []const u8 = "gpu",
+        m: []const u8 = "cpu",
         j: u8 = 0,
 
         s: ?[]const u8 = null,
