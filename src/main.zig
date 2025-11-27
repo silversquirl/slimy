@@ -2,13 +2,14 @@ const std = @import("std");
 const builtin = @import("builtin");
 const optz = @import("optz");
 const slimy = @import("slimy.zig");
-const version = @import("version.zig");
 const root = @import("root");
 
 pub const std_options: std.Options = .{
     .log_level = .debug,
     .log_scope_levels = &.{
         .{ .scope = .thread, .level = .err },
+        .{ .scope = .zcompute, .level = .err },
+        .{ .scope = .gpu, .level = .err },
     },
 };
 
@@ -24,21 +25,18 @@ pub const functions_to_analyze = .{
 };
 
 pub fn main() u8 {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    const stdout = std.fs.File.stdout();
-    const stderr = std.fs.File.stderr();
+    var arena: std.heap.ArenaAllocator = .init(std.heap.page_allocator);
 
-    defer arena.deinit();
+    var stdout = std.fs.File.stdout().writer(arena.allocator().alloc(u8, 64) catch @panic("Out of memory"));
+    var stderr = std.fs.File.stderr().writer(arena.allocator().alloc(u8, 64) catch @panic("Out of memory"));
 
     const options = parseArgs(arena.allocator()) catch |err| switch (err) {
         error.Help => {
-            usage(stdout);
-            return 0;
+            return usage(&stdout.interface);
         },
 
         error.Version => {
-            stdout.writeAll(version.full_desc ++ "\n") catch return 1;
-            return 0;
+            return version(&stdout.interface);
         },
 
         error.Benchmark => {
@@ -46,23 +44,23 @@ pub fn main() u8 {
         },
 
         error.TooManyArgs => {
-            usage(stderr);
+            _ = usage(&stderr.interface);
             std.log.err("Too many arguments", .{});
             return 1;
         },
         error.NotEnoughArgs => {
-            usage(stderr);
+            _ = usage(&stderr.interface);
             std.log.err("Not enough arguments", .{});
             return 1;
         },
 
         error.InvalidFlag => {
-            usage(stderr);
+            _ = usage(&stderr.interface);
             std.log.err("Invalid option", .{});
             return 1;
         },
         error.MissingParameter => {
-            usage(stderr);
+            _ = usage(&stderr.interface);
             std.log.err("Missing option parameter", .{});
             return 1;
         },
@@ -86,10 +84,7 @@ pub fn main() u8 {
         },
     };
 
-    var ctx = OutputContext.init(std.heap.page_allocator, options.output) catch {
-        std.log.err("Error initiating output context", .{});
-        return 1;
-    };
+    var ctx: OutputContext = .init(std.heap.page_allocator, &stdout.interface, &stderr.interface, options.output);
     defer ctx.flush();
 
     for (options.searches) |search| {
@@ -100,23 +95,21 @@ pub fn main() u8 {
                 error.OutOfMemory => @panic("Out of memory"),
                 error.LockedMemoryLimitExceeded => unreachable,
                 error.Unexpected => @panic("Unexpected error"),
-                else => |gpu_err| {
-                    if (@import("build_consts").gpu_support) switch (gpu_err) {
-                        error.ShaderInit => @panic("Compute pipeline init failed"),
-                        error.BufferInit => @panic("Buffer allocation failed"),
-                        error.ShaderExec => @panic("GPU compute execution failed"),
-                        error.Timeout => @panic("Shader execution timed out"),
-                        error.MemoryMapFailed => @panic("Mapping buffer memory failed"),
-                        error.VulkanInit => {
-                            std.log.err("Vulkan initialization failed. Your GPU may not support Vulkan; try using the CPU search instead (-mcpu option)", .{});
-                            return 1;
-                        },
-                    } else switch (gpu_err) {
-                        error.GpuNotSupported => {
-                            std.log.err("Slimy was compiled without GPU support; try using the CPU search instead (-mcpu option)", .{});
-                            return 1;
-                        },
-                    }
+                else => |gpu_err| if (@import("build_consts").gpu_support) switch (gpu_err) {
+                    error.ShaderInit => @panic("Compute pipeline init failed"),
+                    error.BufferInit => @panic("Buffer allocation failed"),
+                    error.ShaderExec => @panic("GPU compute execution failed"),
+                    error.Timeout => @panic("Shader execution timed out"),
+                    error.MemoryMapFailed => @panic("Mapping buffer memory failed"),
+                    error.VulkanInit => {
+                        std.log.err("Vulkan initialization failed. Your GPU may not support Vulkan; try using the CPU search instead (-mcpu option)", .{});
+                        return 1;
+                    },
+                } else switch (gpu_err) {
+                    error.GpuNotSupported => {
+                        std.log.err("Slimy was compiled without GPU support; try using the CPU search instead (-mcpu option)", .{});
+                        return 1;
+                    },
                 },
             };
     }
@@ -127,15 +120,17 @@ pub fn main() u8 {
 const OutputContext = struct {
     lock: std.Thread.Mutex = .{},
 
-    stdout: std.fs.File.Writer,
-    stderr: std.fs.File.Writer,
-
-    allocator: std.mem.Allocator,
+    stdout: *std.Io.Writer,
+    stderr: *std.Io.Writer,
 
     options: OutputOptions,
+
+    allocator: std.mem.Allocator,
     buf: std.ArrayList(slimy.Result),
 
     progress_timer: ?std.time.Timer,
+    completed: u64 = 0,
+    total: u64 = 1,
 
     const progress_tick = std.time.ns_per_s / 4;
     const progress_spinner = [_]u21{
@@ -145,15 +140,18 @@ const OutputContext = struct {
         '◟',
     };
 
-    pub fn init(allocator: std.mem.Allocator, options: OutputOptions) !OutputContext {
+    pub fn init(allocator: std.mem.Allocator, stdout: *std.Io.Writer, stderr: *std.Io.Writer, options: OutputOptions) OutputContext {
         return .{
-            .stdout = std.fs.File.stdout().writer(try allocator.alloc(u8, 1024)),
-            .stderr = std.fs.File.stderr().writer(try allocator.alloc(u8, 1024)),
+            .stdout = stdout,
+            .stderr = stderr,
             .allocator = allocator,
             .options = options,
             .buf = .empty,
             .progress_timer = if (options.progress)
-                std.time.Timer.start() catch null
+                std.time.Timer.start() catch blk: {
+                    std.log.err("Error initializing progress timer", .{});
+                    break :blk null;
+                }
             else
                 null,
         };
@@ -165,65 +163,84 @@ const OutputContext = struct {
 
         if (self.options.sort) {
             self.buf.append(self.allocator, res) catch {
+                self.clearProgress() catch {};
+
                 std.log.warn("Out of memory while attempting to sort items; output may be unsorted", .{});
-                self.output(res);
+                self.printResult(res) catch |err| std.debug.panic("Error writing output: {s}", .{@errorName(err)});
+
+                self.printProgress() catch {};
                 return;
             };
+            // TODO: directly insert item
             std.sort.insertion(slimy.Result, self.buf.items, {}, slimy.Result.sortLessThan);
         } else {
-            self.output(res);
+            self.clearProgress() catch {};
+
+            self.printResult(res) catch |err| std.debug.panic("Error writing output: {s}", .{@errorName(err)});
+
+            self.printProgress() catch {};
         }
     }
 
-    fn print(self: *OutputContext, comptime fmt: []const u8, args: anytype) void {
-        self.stdout.interface.print(fmt, args) catch |err| {
-            std.debug.panic("Error writing output: {s}", .{@errorName(err)});
-        };
-        self.stdout.interface.flush() catch |err| {
-            std.debug.panic("Error writing output: {s}", .{@errorName(err)});
-        };
-    }
-
-    fn output(self: *OutputContext, res: slimy.Result) void {
-        self.progressLineClear();
+    fn printResult(self: *OutputContext, res: slimy.Result) !void {
         switch (self.options.format) {
-            .human => self.print("({:>5}, {:>5})   {}\n", .{ res.x, res.z, res.count }),
-            .csv => self.print("{},{},{}\n", .{ res.x, res.z, res.count }),
+            .human => try self.stdout.print("({:>5}, {:>5})   {}\n", .{ res.x, res.z, res.count }),
+            .csv => try self.stdout.print("{},{},{}\n", .{ res.x, res.z, res.count }),
         }
+        try self.stdout.flush();
     }
 
-    fn progressLineClear(self: *OutputContext) void {
-        if (self.progress_timer != null) {
-            std.debug.print("\r\x1b[K", .{});
-        }
-    }
     pub fn progress(self: *OutputContext, completed: u64, total: u64) void {
         self.lock.lock();
         defer self.lock.unlock();
 
-        if (self.progress_timer) |*timer| {
-            const tick = timer.read() / progress_tick;
+        self.completed, self.total = .{ completed, total };
+        self.clearAndPrintProgress() catch {};
+    }
 
-            _ = self.stderr.interface.writeAll("\r\x1b[K") catch unreachable;
-            self.stderr.interface.print("[{u}] {d:.2}%", .{
-                progress_spinner[tick % progress_spinner.len],
-                @as(f64, @floatFromInt(100_00 * completed / total)) * 0.01,
-            }) catch unreachable;
-            self.stderr.interface.flush() catch unreachable;
-        }
+    /// Only flushes once, to prevent visual artifacts
+    fn clearAndPrintProgress(self: *OutputContext) !void {
+        const timer = &(self.progress_timer orelse return);
+
+        const tick = timer.read() / progress_tick;
+
+        try self.stderr.writeAll("\r\x1b[K");
+
+        try self.stderr.print("[{u}] {d:.2}%", .{
+            progress_spinner[tick % progress_spinner.len],
+            @as(f64, @floatFromInt(100_00 * self.completed / self.total)) * 0.01,
+        });
+        try self.stderr.flush();
+    }
+
+    fn clearProgress(self: *OutputContext) !void {
+        if (self.progress_timer == null) return;
+
+        try self.stderr.writeAll("\r\x1b[K");
+        try self.stderr.flush();
+    }
+
+    fn printProgress(self: *OutputContext) !void {
+        const timer = &(self.progress_timer orelse return);
+
+        const tick = timer.read() / progress_tick;
+
+        try self.stderr.print("[{u}] {d:.2}%", .{
+            progress_spinner[tick % progress_spinner.len],
+            @as(f64, @floatFromInt(100_00 * self.completed / self.total)) * 0.01,
+        });
+        try self.stderr.flush();
     }
 
     pub fn flush(self: *OutputContext) void {
+        self.clearProgress() catch {};
         for (self.buf.items) |res| {
-            self.output(res);
+            self.printResult(res) catch |err| std.debug.panic("Error writing output: {s}", .{@errorName(err)});
         }
-        self.progressLineClear();
     }
 
     pub fn deinit(self: *OutputContext) void {
         self.buf.deinit(self.allocator);
-        self.allocator.free(self.stdout.interface.buffer);
-        self.allocator.free(self.stderr.interface.buffer);
     }
 };
 
@@ -244,26 +261,20 @@ test {
     _ = @import("cpu/slime_check/simd.zig");
 }
 
-test "output context" {
-    var ctx: OutputContext = try .init(std.testing.allocator, .{
+test OutputContext {
+    var stdout = std.fs.File.stdout().writer(&.{});
+    var stderr = std.fs.File.stderr().writer(&.{});
+    var ctx: OutputContext = .init(std.testing.allocator, &stdout.interface, &stderr.interface, .{
         .format = .csv,
         .sort = true,
         .progress = false,
     });
-
-    if (@import("builtin").os.tag != .windows) {
-        const pipe = try std.posix.pipe();
-        var readf = std.fs.File{ .handle = pipe[0] };
-        defer readf.close();
-        var writef = std.fs.File{ .handle = pipe[1] };
-        defer writef.close();
-    }
     ctx.progress(1, 10);
     ctx.flush();
     ctx.deinit();
 }
 
-fn usage(out: std.fs.File) void {
+fn usage(out: *std.Io.Writer) u8 {
     out.writeAll(
         \\Usage:
         \\    slimy [OPTIONS] SEED RANGE THRESHOLD
@@ -280,7 +291,15 @@ fn usage(out: std.fs.File) void {
         \\  -b              Benchmark mode
         \\
         \\
-    ) catch return;
+    ) catch return 1;
+    out.flush() catch return 1;
+    return 0;
+}
+
+fn version(out: *std.Io.Writer) u8 {
+    out.writeAll(@import("version.zig").full_desc ++ "\n") catch return 1;
+    out.flush() catch return 1;
+    return 0;
 }
 
 const Options = struct {
