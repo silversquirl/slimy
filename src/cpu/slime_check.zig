@@ -216,20 +216,9 @@ pub const scalar = struct {
                 // prefer never taken branches over always taken
                 if (biased) {
                     @branchHint(.cold);
-                    break;
+                    continue;
                 }
                 return val;
-            }
-
-            while (true) {
-                bits = self.next(31);
-                val = @mod(bits, bound);
-
-                const biased: bool = bits - val +% (bound - 1) < 0;
-
-                if (!biased) {
-                    return val;
-                }
             }
         }
 
@@ -253,6 +242,45 @@ pub const scalar = struct {
             var random1: Random = .init(seed);
             var random2: Random = .init(seed);
             try std.testing.expect(random1.nextInt(10) != random2.nextIntBiased(10));
+        }
+
+        test "bias check parity" {
+            const bound = 10;
+            for (0..std.math.maxInt(i32) + 1) |bits_u64| {
+                const bits: i32 = @intCast(bits_u64);
+                const val: i32 = @mod(bits, bound);
+                // first is used in java implementation
+                // second one is faster
+                try std.testing.expectEqual(
+                    bits - val +% (bound - 1) < 0,
+                    bits > 2147483639,
+                );
+            }
+        }
+
+        test "bias rate" {
+            if (true) return error.SkipZigTest;
+            var pcg: std.Random.Pcg = .init(0x51133);
+            const pcg_rand = pcg.random();
+
+            for (0..2_000_000_000) |_| {
+                const world_seed = pcg_rand.int(i64);
+                const x = pcg_rand.intRangeAtMost(i32, -30_000_000 / 16, 30_000_000 / 16);
+                const z = pcg_rand.intRangeAtMost(i32, -30_000_000 / 16, 30_000_000 / 16);
+
+                var random: Random = .init(getRandomSeed(
+                    world_seed,
+                    x,
+                    z,
+                ));
+
+                if (random.next(31) > 2147483639) {
+                    // recalculate bits
+                    var rand: Random = .init(getRandomSeed(world_seed, x, z));
+                    std.debug.print("seed: {}, raw: {}\n", .{ rand.seed, rand.next(31) });
+                    std.debug.print("{} {} {}\n", .{ world_seed, x, z });
+                }
+            }
         }
     };
 
