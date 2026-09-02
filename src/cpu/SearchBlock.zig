@@ -11,22 +11,7 @@ data: [width][width]u8,
 min_x: i32,
 min_z: i32,
 
-/// initialized chunks with scalar code
-pub inline fn initScalar(self: *@This(), world_seed: i64, min_x: i32, min_z: i32) void {
-    self.min_x = min_x - offset;
-    self.min_z = min_z - offset;
-
-    for (0..width) |rel_x| {
-        for (0..width) |rel_z| {
-            const abs_x: i32 = min_x - offset + @as(i32, @intCast(rel_x));
-            const abs_z: i32 = min_z - offset + @as(i32, @intCast(rel_z));
-
-            self.data[rel_x][rel_z] = @intFromBool(scalar.isSlime(world_seed, abs_x, abs_z));
-        }
-    }
-}
-
-pub fn initSimd(self: *@This(), world_seed: i64, min_x: i32, min_z: i32) void {
+pub inline fn init(self: *@This(), world_seed: i64, min_x: i32, min_z: i32) void {
     @setRuntimeSafety(false);
 
     const lanes = width;
@@ -84,24 +69,31 @@ pub fn preprocess(self: *@This()) void {
     @setRuntimeSafety(false);
 
     const chunk_len = 7;
-    for (0..width) |x| {
-        for (0..width - chunk_len + 1) |z| {
+    var vec: @Vector(width, u8) = @splat(0);
+    for (0..chunk_len) |x| {
+        vec += self.data[x];
+    }
+    for (0..width - chunk_len) |x| {
+        self.data[x] = (vec << @splat(4)) | self.data[x];
+        vec +%= self.data[x + chunk_len];
+        vec -%= self.data[x];
+    }
+    self.data[width - chunk_len] = (vec << @splat(4)) | self.data[width - chunk_len];
+}
+
+test preprocess {
+    var block: @This() = undefined;
+    block.init(0x51153, 0, 0);
+    block.preprocess();
+
+    const chunk_len = 7;
+    for (0..width - chunk_len + 1) |x| {
+        for (0..width) |z| {
             var count: u8 = 0;
-            for (0..chunk_len) |j| count +%= @bitCast(self.data[x][z + j]);
-            self.data[x][z] |= count << 4;
+            for (0..chunk_len) |j| count += block.data[x + j][z] & 0xf;
+            try std.testing.expectEqual(count, block.data[x][z] >> 4);
         }
     }
-    // const chunk_len = 7;
-    // var vec: @Vector(width, u8) = @splat(0);
-    // for (0..chunk_len) |x| {
-    //     vec += self.data[x];
-    // }
-    // for (0..width - chunk_len) |x| {
-    //     self.data[x] = (vec << @splat(4)) | self.data[x];
-    //     vec += self.data[x + chunk_len];
-    //     vec -= self.data[x];
-    // }
-    // self.data[width - chunk_len] = (vec << @splat(4)) | self.data[width - chunk_len];
 }
 
 /// [.@] - ignore
@@ -109,23 +101,41 @@ pub fn preprocess(self: *@This()) void {
 /// [-] - use preprocessed value but subtract slime value of chunk
 /// [o] - use slime value of chunk
 const mask: [17][17]u8 = .{
-    strip(". . . . . . . . o . . . . . . . .".*),
-    strip(". . . . . + @ @ @ @ @ @ . . . . .".*),
-    strip(". . . + @ @ @ @ @ @ o o o o . . .".*),
-    strip(". . + @ @ @ @ @ - @ @ @ @ @ @ . .".*),
-    strip(". . + @ @ @ @ @ - @ @ @ @ @ @ . .".*),
-    strip(". + @ @ @ @ @ @ + @ @ @ @ @ @ o .".*),
-    strip(". + @ @ @ @ @ @ + @ @ @ @ @ @ o .".*),
-    strip(". + @ @ @ @ @ @ . + @ @ @ @ @ @ .".*),
-    strip("+ @ @ @ @ @ @ . . . + @ @ @ @ @ @".*),
-    strip(". + @ @ @ @ @ @ . + @ @ @ @ @ @ .".*),
-    strip(". + @ @ @ @ @ @ + @ @ @ @ @ @ o .".*),
-    strip(". + @ @ @ @ @ @ + @ @ @ @ @ @ o .".*),
-    strip(". . + @ @ @ @ @ - @ @ @ @ @ @ . .".*),
-    strip(". . + @ @ @ @ @ - @ @ @ @ @ @ . .".*),
-    strip(". . . + @ @ @ @ @ @ o o o o . . .".*),
-    strip(". . . . . + @ @ @ @ @ @ . . . . .".*),
-    strip(". . . . . . . . o . . . . . . . .".*),
+    // strip(". . . . . . . . o . . . . . . . .".*),
+    // strip(". . . . . + @ @ @ @ @ @ . . . . .".*),
+    // strip(". . . + @ @ @ @ @ @ o o o o . . .".*),
+    // strip(". . + @ @ @ @ @ - @ @ @ @ @ @ . .".*),
+    // strip(". . + @ @ @ @ @ - @ @ @ @ @ @ . .".*),
+    // strip(". + @ @ @ @ @ @ + @ @ @ @ @ @ o .".*),
+    // strip(". + @ @ @ @ @ @ + @ @ @ @ @ @ o .".*),
+    // strip(". + @ @ @ @ @ @ . + @ @ @ @ @ @ .".*),
+    // strip("+ @ @ @ @ @ @ . . . + @ @ @ @ @ @".*),
+    // strip(". + @ @ @ @ @ @ . + @ @ @ @ @ @ .".*),
+    // strip(". + @ @ @ @ @ @ + @ @ @ @ @ @ o .".*),
+    // strip(". + @ @ @ @ @ @ + @ @ @ @ @ @ o .".*),
+    // strip(". . + @ @ @ @ @ - @ @ @ @ @ @ . .".*),
+    // strip(". . + @ @ @ @ @ - @ @ @ @ @ @ . .".*),
+    // strip(". . . + @ @ @ @ @ @ o o o o . . .".*),
+    // strip(". . . . . + @ @ @ @ @ @ . . . . .".*),
+    // strip(". . . . . . . . o . . . . . . . .".*),
+
+    strip(". . . . . . . . + . . . . . . . .".*),
+    strip(". . . . . + + + @ + + + . . . . .".*),
+    strip(". . . + + @ @ @ @ @ @ @ + + . . .".*),
+    strip(". . + @ @ @ @ @ @ @ @ @ @ @ + . .".*),
+    strip(". . @ @ @ @ @ @ @ @ @ @ @ @ @ . .".*),
+    strip(". + @ @ @ @ @ @ @ @ @ @ @ @ @ + .".*),
+    strip(". @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ .".*),
+    strip(". @ @ @ @ @ @ @ . @ @ @ @ @ @ @ .".*),
+    strip("o @ @ - - + + . . . + + - - @ @ o".*),
+    strip(". @ @ @ @ @ @ + . + @ @ @ @ @ @ .".*),
+    strip(". @ o @ @ @ @ @ + @ @ @ @ @ o @ .".*),
+    strip(". @ o @ @ @ @ @ @ @ @ @ @ @ o @ .".*),
+    strip(". . o @ @ @ @ @ @ @ @ @ @ @ o . .".*),
+    strip(". . o @ @ @ @ @ @ @ @ @ @ @ o . .".*),
+    strip(". . . @ @ @ @ @ @ @ @ @ @ @ . . .".*),
+    strip(". . . . . o o @ @ @ o o . . . . .".*),
+    strip(". . . . . . . . @ . . . . . . . .".*),
 };
 
 /// Strips spaces from string
@@ -194,26 +204,34 @@ pub fn calculateSliminess(
     context: anytype,
     comptime resultCallback: fn (@TypeOf(context), slimy.Result) void,
 ) void {
+    const threshold = 100;
+    var c: usize = 0;
+    _ = &threshold;
+    _ = &params;
+    _ = &context;
+    _ = &resultCallback;
+    _ = &c;
     for (0..width - mask.len + 1) |x| {
         for (0..width - mask.len + 1) |z| {
             var count: u8 = 0;
 
             var run_7_count: u16 = 0;
-            inline for (run_7[0..15]) |location| run_7_count += self.data[x + location.x][z + location.z];
+            for (run_7[0..15]) |location| run_7_count += self.data[x + location.x][z + location.z];
             count += @intCast(run_7_count >> 4);
 
             run_7_count = 0;
-            inline for (run_7[15..]) |location| run_7_count += self.data[x + location.x][z + location.z];
+            for (run_7[15..]) |location| run_7_count += self.data[x + location.x][z + location.z];
             count += @intCast(run_7_count >> 4);
 
             var add_count: u16 = 0;
-            inline for (add) |location| add_count += self.data[x + location.x][z + location.z];
+            for (add) |location| add_count += self.data[x + location.x][z + location.z];
             count += @intCast(add_count & 0xf);
 
             var sub_count: u16 = 0;
-            inline for (sub) |location| sub_count += self.data[x + location.x][z + location.z];
+            for (sub) |location| sub_count += self.data[x + location.x][z + location.z];
             count -= @intCast(sub_count & 0xf);
 
+            // c += @intFromBool(count >= params.threshold);
             if (count >= params.threshold) {
                 @branchHint(.cold);
                 const real_x = @as(i32, @intCast(x + offset)) + self.min_x;
@@ -230,6 +248,7 @@ pub fn calculateSliminess(
             }
         }
     }
+    std.mem.doNotOptimizeAway(c);
 }
 
 pub fn calculateSliminessForLocation(world_seed: i64, x: i32, z: i32) u8 {
@@ -263,82 +282,43 @@ const bit_mask: [17][17]bool = blk: {
     break :blk dist_mask;
 };
 
-test initScalar {
-    const test_seed = @import("test_data.zig").test_seed;
-
-    var chunk: @This() = undefined;
-    chunk.initScalar(test_seed, offset, offset);
-
-    const block = @import("test_data.zig").block;
-    for (block, 0..) |row, z| {
-        for (row, 0..) |c, x| {
-            try std.testing.expectEqual(c == 'O', chunk.data[x][z] == 1);
-        }
-    }
-}
-
-test initSimd {
-    const test_seed = @import("test_data.zig").test_seed;
-    var chunk: @This() = undefined;
-    chunk.initSimd(test_seed, offset, offset);
-
-    const block = @import("test_data.zig").block;
-    for (block, 0..) |row, z| {
-        for (row, 0..) |c, x| {
-            try std.testing.expectEqual(c == 'O', chunk.data[x][z] == 1);
-        }
-    }
-}
-
-test "initSimd/initScalar parity" {
-    var chunk1: @This() = undefined;
-    var chunk2: @This() = undefined;
-    chunk1.initScalar(0x51133, 0xbeef, -0x51133135);
-    chunk2.initSimd(0x51133, 0xbeef, -0x51133135);
-    try std.testing.expectEqual(
-        chunk1,
-        chunk2,
-    );
-}
-
-test preprocess {
+test init {
     if (true) return error.SkipZigTest;
+    const test_seed = @import("test_data.zig").test_seed;
+    var chunk: @This() = undefined;
+    chunk.init(test_seed, offset, offset);
 
-    var chunk = initSimd(0x51133, offset, offset);
-    chunk.preprocess();
-    for (0..width) |x| {
-        for (0..width) |z| {
-            std.debug.print("{}", .{chunk.data[x][z] >> 4});
+    const block = @import("test_data.zig").block;
+    for (block, 0..) |row, z| {
+        for (row, 0..) |c, x| {
+            try std.testing.expectEqual(c == 'O', chunk.data[x][z] == 1);
         }
-        std.debug.print("\n", .{});
     }
 }
 
 test calculateSliminess {
-    // if (true) return error.SkipZigTest;
-
     const Context = struct {
-        allocator: std.mem.Allocator,
-        results: *std.ArrayList(slimy.Result),
-        fn reportResult(context: @This(), result: slimy.Result) void {
-            context.results.append(context.allocator, result) catch {};
+        fn reportResult(context: *std.ArrayList(slimy.Result), result: slimy.Result) void {
+            context.append(std.testing.allocator, result) catch {};
         }
     };
 
     const test_seed = 0x51133;
+
     var results: std.ArrayList(slimy.Result) = .empty;
     defer results.deinit(std.testing.allocator);
+
     var chunk: @This() = undefined;
-    chunk.initSimd(test_seed, 0, 0);
+    chunk.init(test_seed, 0, 0);
     chunk.preprocess();
     chunk.calculateSliminess(
-        .{ .x0 = 0, .x1 = width, .z0 = 0, .z1 = width, .method = undefined, .threshold = 22, .world_seed = test_seed },
-        @as(Context, .{ .allocator = std.testing.allocator, .results = &results }),
+        .{ .x0 = 0, .x1 = width, .z0 = 0, .z1 = width, .method = undefined, .threshold = 0, .world_seed = undefined },
+        &results,
         Context.reportResult,
     );
 
-    // try std.testing.expectEqual(tested_size * tested_size, results.items.len);
+    try std.testing.expectEqual(tested_size * tested_size, results.items.len);
     for (results.items) |result| {
-        std.testing.expectEqual(calculateSliminessForLocation(test_seed, result.x, result.z), result.count) catch {};
+        std.testing.expectEqual(calculateSliminessForLocation(test_seed, result.x, result.z), result.count) catch std.debug.print("{} {}\n", .{ result.x, result.z });
     }
 }

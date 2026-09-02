@@ -137,7 +137,7 @@ fn benchCpu(w: *std.Io.Writer) !void {
     try printCpuHeader(w);
     var collector: Collector = .{};
     var params = warmup_params;
-    params.method = .{ .cpu = 8 };
+    params.method = .{ .cpu = 1 };
     var timer: std.time.Timer = try .start();
 
     try w.writeAll("Performing warmup test...");
@@ -155,9 +155,9 @@ fn benchCpu(w: *std.Io.Writer) !void {
     var cpu_rate: u128 = approx_cpu_rate;
     for (0..3) |i| {
         try w.writeByte('.');
-        cpu_rate += try benchCpuIter(params.method.cpu, cpu_rate / (i + 1), 5);
+        cpu_rate = try benchCpuIter(params.method.cpu, cpu_rate / (i + 1), 5);
     }
-    cpu_rate = (cpu_rate - approx_cpu_rate) / 3; // Mean
+    // cpu_rate = (cpu_rate - approx_cpu_rate) / 3; // Mean
     try w.print(
         " {f} locations per second\n",
         .{@as(
