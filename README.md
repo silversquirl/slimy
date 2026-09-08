@@ -33,9 +33,13 @@ slimy-SYSTEM -- SEED RANGE THRESHOLD
 Once you run the command, it may take a few seconds to complete.
 Just wait until it's finished and it'll output the results once it's done.
 
-On systems with integrated GPUs, the CPU search may be faster than GPU search.
-Some older GPUs may not be able to use the GPU search at all - this will be reported as an error in Vulkan initialization.
-In these cases, you can use the CPU search mode like this:
+~~On systems with integrated GPUs, the CPU search may be faster than GPU search.~~
+~~Some older GPUs may not be able to use the GPU search at all - this will be reported as an error in Vulkan initialization.~~
+~~In these cases, you can use the CPU search mode like this:~~
+
+GPU search is currently disabled. It is several orders of magnitude slower than the CPU search,
+as the faster algorithm the CPU search uses has not been ported.
+
 
 ```
 slimy-SYSTEM -mcpu -- SEED RANGE THRESHOLD
@@ -64,16 +68,16 @@ To output results to a CSV file named `results.csv`, use the following command:
 slimy-SYSTEM -f csv -- SEED RANGE THRESHOLD >results.csv
 ```
 
-### Unsorted output
+### Sorted output
 
-If you want to see results more quickly, for example in order to allow further processing to happen in a streaming fashion, you can disable result sorting.
+If you want to see results sorted by chunk count, you can enable result sorting.
 This is done with the `-u` option, as follows:
 
 ```
 slimy-SYSTEM -u -- SEED RANGE THRESHOLD
 ```
 
-This option can be combined with the `-f` option to produce unsorted output in a different format, eg. for an unsorted CSV file:
+This option can be combined with the `-f` option to produce sorted output in a different format, eg. for a sorted CSV file:
 
 ```
 slimy-SYSTEM -uf csv -- SEED RANGE THRESHOLD >results.csv
@@ -81,13 +85,15 @@ slimy-SYSTEM -uf csv -- SEED RANGE THRESHOLD >results.csv
 
 ### Custom thread count
 
-By default, Slimy's CPU search will use as many CPU threads as are available.
+By default, Slimy's CPU search will use as many threads as there are logical CPU cores.
 If you wish to customize this behaviour, you can use the `-j` option.
 For example, the following command will perform a CPU search with 4 threads:
 
 ```
 slimy-SYSTEM -m cpu -j 4 -- SEED RANGE THRESHOLD
 ```
+
+On a CPU with Hyperthreading, it is recommended to set the thread count equal to the amount of physical cores.
 
 ### JSON search parameters
 

@@ -151,7 +151,7 @@ fn benchCpu(w: *std.Io.Writer) !void {
     var cpu_rate: u128 = approx_cpu_rate / 100;
     for (0..3) |i| {
         try w.writeByte('.');
-        cpu_rate = try benchCpuIter(8, cpu_rate / (i + 1), 10);
+        cpu_rate = try benchCpuIter(@intCast(std.Thread.getCpuCount() catch 1), cpu_rate / (i + 1), 10);
     }
     try w.print(
         " {f} locations per second\n",
