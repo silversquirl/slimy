@@ -3,12 +3,13 @@ pub const gpu = @import("gpu.zig");
 
 pub fn search(
     params: SearchParams,
+    method: SearchMethod,
     context: anytype,
     comptime resultCallback: fn (@TypeOf(context), Result) void,
     comptime progressCallback: ?fn (@TypeOf(context), completed: u64, total: u64) void,
 ) !void {
-    switch (params.method) {
-        .cpu => try cpu.search(params, context, resultCallback, progressCallback),
+    switch (method) {
+        .cpu => |thread_count| try cpu.search(params, context, resultCallback, progressCallback, thread_count),
         .gpu => {
             if (!@import("build_consts").gpu_support) {
                 return error.GpuNotSupported;
@@ -27,8 +28,6 @@ pub const SearchParams = struct {
     z0: i32,
     x1: i32,
     z1: i32,
-
-    method: SearchMethod,
 };
 
 pub const SearchMethod = union(enum) {

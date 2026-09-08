@@ -77,7 +77,7 @@ pub fn main() u8 {
     defer ctx.flush();
 
     for (options.searches) |search| {
-        slimy.search(search, &ctx, OutputContext.result, OutputContext.progress) catch |err|
+        slimy.search(search, options.method, &ctx, OutputContext.result, OutputContext.progress) catch |err|
             switch (err) {
                 error.ThreadQuotaExceeded => @panic("Thread quota exceeded"),
                 error.SystemResources => @panic("System resources error"),
@@ -328,8 +328,8 @@ pub const OutputOptions = struct {
 
 test {
     _ = OutputContext;
-    _ = @import("cpu/SearchBlock.zig");
-    _ = @import("cpu/slime_check.zig");
+    _ = @import("cpu/search_early_out.zig");
+    _ = @import("cpu/search_exact.zig");
 }
 
 fn usage(out: *std.Io.Writer) u8 {
@@ -362,6 +362,7 @@ fn version(out: *std.Io.Writer) u8 {
 
 const Options = struct {
     searches: []const slimy.SearchParams,
+    method: slimy.SearchMethod,
     output: OutputOptions,
 };
 
@@ -469,8 +470,6 @@ fn parseArgs(arena: std.mem.Allocator) ArgsError!Options {
                 .z0 = p.z0,
                 .x1 = p.x1,
                 .z1 = p.z1,
-
-                .method = method,
             };
         }
         searches = s;
@@ -491,14 +490,13 @@ fn parseArgs(arena: std.mem.Allocator) ArgsError!Options {
             .z0 = -range_n,
             .x1 = range_n,
             .z1 = range_n,
-
-            .method = method,
         };
         searches = s;
     }
 
     return Options{
         .searches = searches,
+        .method = method,
         .output = .{
             .format = format,
             .sort = !flags.u,

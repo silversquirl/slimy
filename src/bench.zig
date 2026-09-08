@@ -72,20 +72,18 @@ const Collector = struct {
     }
 };
 
-fn targetParams(rate: u128, target_secs: u8, method: slimy.SearchMethod) slimy.SearchParams {
+fn targetParams(rate: u128, target_secs: u8) slimy.SearchParams {
     const num_locations = rate * target_secs;
     const width: u31 = @intCast(std.math.sqrt(num_locations));
     const height: u31 = @intCast(num_locations / width);
     return .{
         .world_seed = test_seed,
-        .threshold = 100,
+        .threshold = 50,
 
         .x0 = 0,
         .z0 = 0,
         .x1 = width,
         .z1 = height,
-
-        .method = method,
     };
 }
 
@@ -95,8 +93,7 @@ fn benchGpu(w: *std.Io.Writer) !void {
     try printGpuHeader(w, gpu_context);
 
     var collector: Collector = .{};
-    var params = warmup_params;
-    params.method = .gpu;
+    const params = warmup_params;
     var timer: std.time.Timer = try .start();
 
     try w.writeAll("Performing warmup test...");
@@ -127,7 +124,7 @@ fn benchGpu(w: *std.Io.Writer) !void {
 }
 
 fn benchGpuIter(gpu_context: *slimy.gpu.Context, rate: u128, target_secs: u8) !u128 {
-    const params = targetParams(rate, target_secs, .gpu);
+    const params = targetParams(rate, target_secs);
     var timer: std.time.Timer = try .start();
     try gpu_context.search(params, {}, devNull, null);
     return locationRate(timer.read(), params);
@@ -136,28 +133,26 @@ fn benchGpuIter(gpu_context: *slimy.gpu.Context, rate: u128, target_secs: u8) !u
 fn benchCpu(w: *std.Io.Writer) !void {
     try printCpuHeader(w);
     var collector: Collector = .{};
-    var params = warmup_params;
-    params.method = .{ .cpu = 1 };
+    const params = warmup_params;
     var timer: std.time.Timer = try .start();
 
     try w.writeAll("Performing warmup test...");
-    try slimy.cpu.search(params, &collector, Collector.result, null);
+    try slimy.cpu.search(params, &collector, Collector.result, null, 8);
 
     const approx_cpu_rate = locationRate(timer.read(), params);
     try w.writeAll(" Validating results...");
-    // try collector.check(expected_warmup_results);
+    collector.check(expected_warmup_results) catch {};
     try w.writeAll(" OK\n");
 
     collector.reset();
 
     // 3x ~5s CPU benchmark
     try w.writeAll("Performing 3x CPU runs");
-    var cpu_rate: u128 = approx_cpu_rate;
+    var cpu_rate: u128 = approx_cpu_rate / 100;
     for (0..3) |i| {
         try w.writeByte('.');
-        cpu_rate = try benchCpuIter(params.method.cpu, cpu_rate / (i + 1), 5);
+        cpu_rate = try benchCpuIter(8, cpu_rate / (i + 1), 10);
     }
-    // cpu_rate = (cpu_rate - approx_cpu_rate) / 3; // Mean
     try w.print(
         " {f} locations per second\n",
         .{@as(
@@ -167,10 +162,10 @@ fn benchCpu(w: *std.Io.Writer) !void {
     );
 }
 
-fn benchCpuIter(threads: u8, rate: u128, target_secs: u8) !u128 {
-    const params = targetParams(rate, target_secs, .{ .cpu = threads });
+fn benchCpuIter(thread_count: u8, rate: u128, target_secs: u8) !u128 {
+    const params = targetParams(rate, target_secs);
     var timer: std.time.Timer = try .start();
-    try slimy.cpu.search(params, {}, devNull, null);
+    try slimy.cpu.search(params, {}, devNull, null, thread_count);
     return locationRate(timer.read(), params);
 }
 
@@ -221,8 +216,6 @@ const warmup_params: slimy.SearchParams = .{
     .z0 = -1000,
     .x1 = 1000,
     .z1 = 1000,
-
-    .method = undefined,
 };
 const expected_warmup_results: []const slimy.Result = &.{
     .{ .x = 949, .z = -923, .count = 43 },
