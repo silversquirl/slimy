@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const singlethread = b.option(bool, "singlethread", "Build in single-threaded mode") orelse false;
-    const gpu_support = b.option(bool, "gpu", "Support using gpu search") orelse true;
+    const gpu_support = b.option(bool, "gpu", "Support using gpu search") orelse false;
     const strip = b.option(bool, "strip", "Strip debug info from binaries") orelse false;
     const suffix = b.option(bool, "suffix", "Suffix binary names with version and target") orelse false;
     const timestamp = b.option(bool, "timestamp", "Include build timestamp in version information") orelse false;

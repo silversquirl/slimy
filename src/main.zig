@@ -341,7 +341,7 @@ fn usage(out: *std.Io.Writer) u8 {
         \\  -h              Display this help message
         \\  -v              Display version information
         \\  -f FORMAT       Output format (human [default] or csv)
-        \\  -u              Disable output sorting
+        \\  -u              Enable output sorting
         \\  -q              Disable progress reporting
         \\  -m METHOD       Search method (cpu [default] or gpu)
         \\  -j THREADS      Number of threads to use (for cpu method only)
@@ -494,12 +494,12 @@ fn parseArgs(arena: std.mem.Allocator) ArgsError!Options {
         searches = s;
     }
 
-    return Options{
+    return .{
         .searches = searches,
         .method = method,
         .output = .{
             .format = format,
-            .sort = !flags.u,
+            .sort = flags.u,
             .progress = progress,
         },
     };
